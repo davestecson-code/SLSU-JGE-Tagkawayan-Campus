@@ -309,4 +309,4 @@ def profile():
     return render_template_string(dashboard_template(content, "profile", "Profile"))
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)
