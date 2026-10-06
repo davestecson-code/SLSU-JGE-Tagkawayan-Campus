@@ -1,0 +1,40 @@
+{
+  "users": {
+    "admin": {
+      "password": "admin123",
+      "complete_name": "System Administrator",
+      "school_id": "ADM001",
+      "course": "Administration",
+      "year_level": "N/A",
+      "role": "admin"
+    },
+    "registrar_admin": {
+      "password": "registrar123",
+      "complete_name": "Registrar Admin",
+      "school_id": "REG001",
+      "course": "Registrar",
+      "year_level": "N/A",
+      "role": "registrar_admin"
+    },
+    "guard_admin": {
+      "password": "guard123",
+      "complete_name": "Security Admin",
+      "school_id": "SEC001",
+      "course": "Security",
+      "year_level": "N/A",
+      "role": "guard_admin"
+    },
+    "maintenance_admin": {
+      "password": "maintenance123",
+      "complete_name": "Maintenance Admin",
+      "school_id": "MNT001",
+      "course": "Maintenance",
+      "year_level": "N/A",
+      "role": "maintenance_admin"
+    }
+  },
+  "pending_users": [],
+  "grade_requests": [],
+  "maintenance_reports": [],
+  "announcements": []
+}
