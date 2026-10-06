@@ -9,6 +9,7 @@ app.secret_key = "slsu_jge_secure_key_2026"
 DB_FILE = "data.json"
 UPLOAD_FOLDER = "uploads"
 ALLOWED_FILE_EXTENSIONS = {"pdf", "png", "jpg", "jpeg"}
+ALLOWED_IMAGE_EXTENSIONS = {"png", "jpg", "jpeg"}
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 DEFAULT_ADMINS = {
@@ -76,7 +77,7 @@ YEAR_LEVELS = ["1st Year", "2nd Year", "3rd Year", "4th Year"]
 
 
 def load_data():
-    global users, pending_users, maintenance_reports, announcements, grade_requests, notifications, guard_logs
+    global users, pending_users, maintenance_reports, announcements, grade_requests, notifications, guard_logs, guard_on_duty
     if os.path.exists(DB_FILE):
         with open(DB_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -91,6 +92,7 @@ def load_data():
             grade_requests = data.get("grade_requests", [])
             notifications = data.get("notifications", {})
             guard_logs = data.get("guard_logs", [])
+            guard_on_duty = str(data.get("guard_on_duty", "") or "")
     else:
         users = {}
         pending_users = {}
@@ -103,6 +105,7 @@ def load_data():
         grade_requests = []
         notifications = {}
         guard_logs = []
+        guard_on_duty = ""
 
     notifications = notifications if isinstance(notifications, dict) else {}
     guard_logs = guard_logs if isinstance(guard_logs, list) else []
@@ -141,7 +144,8 @@ def save_data():
             "announcements": announcements,
             "grade_requests": grade_requests,
             "notifications": notifications,
-            "guard_logs": guard_logs
+            "guard_logs": guard_logs,
+            "guard_on_duty": guard_on_duty
         }, f, indent=4)
 
 
@@ -317,17 +321,25 @@ def dashboard_template(content, active_page, page_title):
 <title>SLSU-JGE {page_title}</title>
 <style>
 *{{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',sans-serif}}
-:root{{--green:#0b9e88;--deep:#087d70;--ink:#193f40;--muted:#75898b;--line:#edf2f2;--soft:#f3f8f7}}
-body{{min-height:100vh;display:flex;background:linear-gradient(rgba(241,247,246,.80),rgba(241,247,246,.80)),url('/bg.jpg') center center / cover fixed;color:var(--ink)}}
-.sidebar{{width:252px;height:100vh;min-height:100vh;flex:none;background:#fff;padding:18px 16px;display:flex;flex-direction:column;gap:8px;position:sticky;top:0;align-self:flex-start;z-index:2;border-right:1px solid #eaf0ef;overflow-y:auto}}
+:root{{--green:#11c6a6;--deep:#087c72;--ink:#103f42;--muted:#66817f;--line:#d9f0e9;--soft:#e9faf4}}
+body{{min-height:100vh;display:flex;background:linear-gradient(135deg,rgba(0,135,112,.40) 0%,rgba(0,210,170,.34) 100%),url('/bg.jpg') center center / cover fixed;color:var(--ink)}}
+.sidebar{{width:252px;height:auto;min-height:0;flex:none;background:rgba(178,235,216,.93);padding:18px 16px;display:flex;flex-direction:column;gap:8px;position:fixed;top:68px;bottom:0;left:0;z-index:1002;border-right:1px solid #bceadd;overflow-y:auto;transform:translateX(-105%);transition:transform .22s ease}}
+.sidebar.is-open{{transform:translateX(0)}}
+.menu-toggle{{position:fixed;top:12px;left:18px;z-index:1004;width:44px;height:44px;border:1px solid #bceadd;border-radius:12px;background:#effff8;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;cursor:pointer;box-shadow:0 3px 12px rgba(9,92,77,.14)}}
+.menu-toggle span{{display:block;width:20px;height:2px;border-radius:2px;background:#087c72;transition:transform .18s,opacity .18s}}
+.menu-toggle.is-open span:first-child{{transform:translateY(7px) rotate(45deg)}}
+.menu-toggle.is-open span:nth-child(2){{opacity:0}}
+.menu-toggle.is-open span:last-child{{transform:translateY(-7px) rotate(-45deg)}}
+.menu-backdrop{{display:none;position:fixed;inset:68px 0 0;background:rgba(4,69,62,.38);backdrop-filter:blur(2px);z-index:1000}}
+.menu-backdrop.is-open{{display:block}}
 .sidebar-brand{{height:68px;display:flex;align-items:center;gap:12px;padding:0 8px 13px;border-bottom:1px solid var(--line);margin-bottom:12px}}
-.brand-mark{{width:42px;height:42px;display:grid;place-items:center;border-radius:14px;background:#e1f6f0;color:var(--deep);font-size:21px}}
-.brand-title{{font-size:15px;font-weight:800;color:#193f40;letter-spacing:.3px}}
-.brand-subtitle{{font-size:9px;color:#829597;letter-spacing:1.3px;margin-top:3px}}
-.menu-section-label{{font-size:10px;font-weight:800;letter-spacing:1.4px;color:#91a5a7;padding:9px 12px 4px}}
+.brand-mark{{width:42px;height:42px;display:grid;place-items:center;border-radius:14px;background:#e1fff4;color:var(--deep);font-size:21px}}
+.brand-title{{font-size:15px;font-weight:800;color:#103f42;letter-spacing:.3px}}
+.brand-subtitle{{font-size:9px;color:#557b73;letter-spacing:1.3px;margin-top:3px}}
+.menu-section-label{{font-size:10px;font-weight:800;letter-spacing:1.4px;color:#5d8c7e;padding:9px 12px 4px}}
 .sidebar a{{text-decoration:none}}
-.menu-btn{{padding:12px 13px;border:0;border-radius:11px;background:transparent;color:#647a7d;font-size:13px;font-weight:500;cursor:pointer;text-align:left;width:100%;display:flex;justify-content:space-between;align-items:center;transition:.15s}}
-.menu-btn.active{{background:#e8f7f3;color:var(--deep);font-weight:700;box-shadow:inset 3px 0 var(--green)}}
+.menu-btn{{padding:12px 13px;border:0;border-radius:11px;background:transparent;color:#265d56;font-size:13px;font-weight:500;cursor:pointer;text-align:left;width:100%;display:flex;justify-content:space-between;align-items:center;transition:.15s}}
+.menu-btn.active{{background:#83edcf;color:#074e4d;font-weight:700;box-shadow:inset 3px 0 #0a9f8d}}
 .menu-btn:hover{{filter:saturate(1.15);transform:translateX(2px)}}
 .sidebar a[href="/dashboard"] .menu-btn:not(.active),
 .sidebar a[href="/pending"] .menu-btn:not(.active),
@@ -336,38 +348,40 @@ body{{min-height:100vh;display:flex;background:linear-gradient(rgba(241,247,246,
 .sidebar a[href="/guard"] .menu-btn:not(.active),
 .sidebar a[href="/maintenance"] .menu-btn:not(.active),
 .sidebar a[href="/profile"] .menu-btn:not(.active),
-.sidebar a[href="/notifications"] .menu-btn:not(.active){{background:#f1f6f0;color:#42624e}}
-.sidebar a[href="/pending"] .menu-btn:not(.active){{background:#f8f3e7;color:#806a35}}
-.sidebar a .menu-btn.active{{background:#176d55;color:#fff;box-shadow:inset 3px 0 #d6b46b}}
-.menu-btn.logout{{color:#cf5149;background:#fff2f0!important;margin-top:auto}}
-.main{{flex:1;min-width:0;padding:28px 34px 24px;overflow-y:auto}}
-.header{{display:flex;align-items:center;justify-content:space-between;margin-bottom:23px;color:var(--ink)}}
+.sidebar a[href="/notifications"] .menu-btn:not(.active){{background:#e3f8ee;color:#245b55}}
+.sidebar a[href="/pending"] .menu-btn:not(.active){{background:#e3f8ee;color:#245b55}}
+.sidebar a .menu-btn.active{{background:#83edcf;color:#074e4d;box-shadow:inset 3px 0 #087c72}}
+.menu-btn.logout{{color:#176c63;background:#dff8ed!important;margin-top:auto}}
+.main{{flex:1;min-width:0;padding:52px 14px 20px;overflow-y:auto}}
+.header{{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;color:#f5fffb;text-shadow:0 1px 4px rgba(0,48,43,.72)}}
 .header img{{width:42px;height:42px;object-fit:cover;background:#fff;border-radius:13px;padding:2px;box-shadow:0 2px 10px #193f4012}}
-.header-text h1{{font-size:24px;font-weight:800;color:var(--ink)}}
-.header-text p{{font-size:12px;color:var(--muted);margin-top:4px}}
+.header-text h1{{font-size:24px;font-weight:800;color:#ffffff}}
+.header-text p{{font-size:12px;color:#e2fff6;margin-top:4px}}
 .header-user{{display:flex;align-items:center;gap:10px;margin-left:auto}}
-.header-avatar{{width:40px;height:40px;border-radius:50%;background:#d6f3e9;display:grid;place-items:center;color:var(--deep);font-size:12px;font-weight:800}}
-.header-user-name{{font-size:12px;font-weight:700;color:#29484a}}
-.header-user-role{{font-size:10px;color:#819699;margin-top:2px}}
-.card{{background:#fff;border:1px solid #eff3f2;border-radius:17px;padding:20px;margin-bottom:16px;box-shadow:0 5px 18px rgba(29,67,81,.055)}}
-.card h2{{font-size:17px;color:#234748;margin-bottom:10px;font-weight:700}}
-.dashboard-crumb{{font-size:11px;color:#829799;margin-bottom:12px}}
-.dashboard-hero{{position:relative;overflow:hidden;background:linear-gradient(115deg,#087d70,#12b89b);border-radius:20px;padding:27px 32px;color:white;margin-bottom:20px;min-height:144px}}
+.header-avatar{{width:40px;height:40px;border-radius:50%;background:#bdf4df;display:grid;place-items:center;color:var(--deep);font-size:12px;font-weight:800}}
+.header-user-name{{font-size:12px;font-weight:700;color:#ffffff}}
+.header-user-role{{font-size:10px;color:#d8fff3;margin-top:2px}}
+.card{{background:rgba(255,255,255,.91);border:1px solid #d9f0e9;border-radius:17px;padding:20px;margin-bottom:16px;box-shadow:0 5px 18px rgba(6,83,75,.09)}}
+.card h2{{font-size:17px;color:#164d4b;margin-bottom:10px;font-weight:700}}
+.dashboard-crumb{{font-size:11px;color:#effff9;text-shadow:0 1px 4px rgba(0,48,43,.8);margin-bottom:9px}}
+.dashboard-hero{{position:relative;overflow:hidden;background:linear-gradient(115deg,#087d72,#16c6a7);border-radius:20px;padding:27px 32px;color:white;margin-bottom:20px;min-height:144px}}
 .dashboard-hero:after{{content:' ';position:absolute;width:190px;height:190px;border-radius:50%;right:3%;top:-88px;background:#ffffff12;box-shadow:75px 125px 0 18px #ffffff0d}}
 .hero-date{{font-size:10px;letter-spacing:1px;color:#d5fff4}}
 .hero-title{{font-size:25px;font-weight:800;margin:12px 0 7px;color:white}}
 .hero-subtitle{{font-size:12px;color:#e2fff9;max-width:730px}}
 .hero-link{{position:absolute;right:32px;top:50%;transform:translateY(-50%);background:#ffffff22;color:#fff;border:1px solid #ffffff24;border-radius:12px;padding:12px 16px;text-decoration:none;font-size:12px;font-weight:700;z-index:1}}
 .dashboard-stats{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:15px;margin-bottom:20px}}
-.stat-card{{background:#fff;border:1px solid #eff3f2;border-radius:16px;padding:17px;min-height:112px;box-shadow:0 5px 18px rgba(29,67,81,.05)}}
+.stat-card{{background:rgba(255,255,255,.91);border:1px solid #d9f0e9;border-radius:16px;padding:17px;min-height:112px;box-shadow:0 5px 18px rgba(6,83,75,.08)}}
+.stat-card-link{{display:block;color:inherit;text-decoration:none;border-radius:16px;transition:transform .16s ease,box-shadow .16s ease}}
+.stat-card-link:hover{{transform:translateY(-3px);box-shadow:0 9px 22px rgba(29,67,81,.12)}}
 .stat-top{{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:11px}}
 .stat-icon{{width:36px;height:36px;border-radius:12px;display:grid;place-items:center;font-size:17px;background:#e2f7f0}}
 .stat-number{{font-size:28px;font-weight:800;color:var(--ink);margin:8px 0 0 45px}}
 .dashboard-columns{{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(300px,.95fr);gap:18px}}
 .course-chart{{display:flex;align-items:flex-end;gap:clamp(8px,2.4vw,24px);height:176px;padding:20px 10px 0;border-bottom:1px solid var(--line)}}
-.course-bar-wrap{{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:8px;color:#75898b;font-size:10px}}
-.course-bar{{width:min(38px,70%);min-height:6px;border-radius:7px 7px 2px 2px;background:#0ba88f}}
-.office-hero{{display:flex;align-items:center;gap:18px;min-height:116px;padding:20px 25px;border-radius:18px;background:linear-gradient(115deg,#123e33,#176d55);color:#fff;margin-bottom:16px;position:relative;overflow:hidden}}
+.course-bar-wrap{{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:8px;color:#66817f;font-size:10px}}
+.course-bar{{width:min(38px,70%);min-height:6px;border-radius:7px 7px 2px 2px;background:#11c6a6}}
+.office-hero{{display:flex;align-items:center;gap:18px;min-height:116px;padding:20px 25px;border-radius:18px;background:linear-gradient(115deg,#075e59,#0bb99e);color:#fff;margin-bottom:16px;position:relative;overflow:hidden}}
 .office-hero:after{{content:"";position:absolute;right:-35px;top:-90px;width:210px;height:210px;border-radius:50%;background:#fff;opacity:.055}}
 .office-hero-brand{{width:68px;height:68px;border-radius:15px;background:#fff;display:grid;place-items:center;flex:none;overflow:hidden}}
 .office-hero-brand img{{width:62px;height:62px;object-fit:contain}}
@@ -376,59 +390,60 @@ body{{min-height:100vh;display:flex;background:linear-gradient(rgba(241,247,246,
 .office-hero h2{{font-size:21px;color:#fff;margin:6px 0 4px}}
 .office-hero p{{font-size:11px;color:#e0eee4}}
 .office-metrics{{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:17px}}
-.office-metric{{display:flex;align-items:center;gap:11px;background:#fff;border:1px solid #edf1ed;border-radius:14px;padding:13px 16px;box-shadow:0 5px 18px rgba(29,67,49,.05)}}
-.office-metric-icon{{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:#e3efe5;color:#286547;font-size:15px;font-weight:700}}
-.office-metric-icon.gold{{background:#f8f0df;color:#916f2d}}
-.office-metric-icon.sage{{background:#e7f1e5;color:#287754}}
-.office-metric-icon.clay{{background:#f5e9e4;color:#9b6351}}
-.office-metric-label{{font-size:10px;color:#75877b}}
-.office-metric-value{{font-size:19px;font-weight:800;color:#173d31;margin-top:2px}}
-.dashboard-notice{{padding:13px;border-radius:12px;margin-top:11px;background:#f0faf7}}
-.dashboard-notice:nth-of-type(2n){{background:#fff8ed}}
-.dashboard-notice-title{{font-size:12px;font-weight:700;color:#345657;margin-bottom:6px}}
-.dashboard-notice-text{{font-size:11px;line-height:1.5;color:#6f8586}}
+.office-metric{{display:flex;align-items:center;gap:11px;background:rgba(255,255,255,.91);border:1px solid #d9f0e9;border-radius:14px;padding:13px 16px;box-shadow:0 5px 18px rgba(6,83,75,.08)}}
+.office-metric-icon{{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:#c8f5e6;color:#087c72;font-size:15px;font-weight:700}}
+.office-metric-icon.gold{{background:#e4faee;color:#167a68}}
+.office-metric-icon.sage{{background:#c8f5e6;color:#087c72}}
+.office-metric-icon.clay{{background:#d9f7ed;color:#177b70}}
+.office-metric-label{{font-size:10px;color:#66817f}}
+.office-metric-value{{font-size:19px;font-weight:800;color:#103f42;margin-top:2px}}
+.dashboard-notice{{padding:13px;border-radius:12px;margin-top:11px;background:#def8ee}}
+.dashboard-notice:nth-of-type(2n){{background:#d5f5ef}}
+.dashboard-notice-title{{font-size:12px;font-weight:700;color:#164d4b;margin-bottom:6px}}
+.dashboard-notice-text{{font-size:11px;line-height:1.5;color:#5c7a78}}
 .dashboard-table{{overflow-x:auto}}
-.dashboard-table th{{background:#f6faf9;color:#91a3a5;font-size:10px;letter-spacing:.4px}}
+.dashboard-table th{{background:#d7f5eb;color:#397b70;font-size:10px;letter-spacing:.4px}}
 .dashboard-table th,.dashboard-table td{{padding:10px 9px}}
-.table-status{{display:inline-block;padding:5px 9px;border-radius:20px;background:#e4f7ed;color:#178454;font-weight:700;font-size:10px}}
+.table-status{{display:inline-block;padding:5px 9px;border-radius:20px;background:#c9f3e3;color:#087c72;font-weight:700;font-size:10px}}
 @media(max-width:1050px){{.sidebar{{width:218px}}.dashboard-stats{{grid-template-columns:repeat(2,minmax(0,1fr))}}.dashboard-columns{{grid-template-columns:1fr}}}}
-@media(max-width:680px){{body{{display:block}}.sidebar{{width:100%;min-height:0;position:static;padding:12px;display:flex;flex-direction:row;flex-wrap:wrap;border-right:0;border-bottom:1px solid var(--line)}}.sidebar-brand{{width:100%;height:48px;margin:0;padding-bottom:8px}}.menu-section-label{{display:none}}.sidebar a{{flex:1 1 42%}}.menu-btn{{padding:10px;font-size:11px}}.main{{padding:18px 14px}}.header{{margin-bottom:16px}}.header-text h1{{font-size:19px}}.header-user-role{{display:none}}.dashboard-hero{{padding:22px 19px}}.hero-title{{font-size:21px;max-width:75%}}.hero-link{{position:relative;right:auto;top:auto;transform:none;display:inline-block;margin-top:15px}}.dashboard-stats{{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}}.stat-card{{padding:13px}}.stat-number{{font-size:24px}}}}
-.card h2{{font-size:18px;color:#333;margin-bottom:15px;font-weight:700}}
-.logout{{background:rgba(255,77,77,0.9)!important;margin-top:20px}}
+@media(max-width:680px){{body{{display:block}}.sidebar{{width:min(84vw,290px);height:auto;min-height:0;position:fixed;top:68px;bottom:0;left:0;padding:16px;display:flex;flex-direction:column;flex-wrap:nowrap;border-right:1px solid #eaf0ef;border-bottom:0;transform:translateX(-105%);transition:transform .22s ease}}.sidebar.is-open{{transform:translateX(0)}}.sidebar-brand{{width:100%;height:48px;margin:0;padding-bottom:8px}}.menu-section-label{{display:none}}.sidebar a{{flex:0 0 auto}}.menu-btn{{padding:10px;font-size:11px}}.main{{padding:82px 14px 18px}}.header{{margin-bottom:16px}}.header-text h1{{font-size:19px}}.header-user-role{{display:none}}.dashboard-hero{{padding:22px 19px}}.hero-title{{font-size:21px;max-width:75%}}.hero-link{{position:relative;right:auto;top:auto;transform:none;display:inline-block;margin-top:15px}}.dashboard-stats{{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}}.stat-card{{padding:13px}}.stat-number{{font-size:24px}}}}
+.card h2{{font-size:18px;color:#164d4b;margin-bottom:15px;font-weight:700}}
+.logout{{background:#dff8ed!important;color:#176c63!important;margin-top:20px}}
 a{{text-decoration:none}}
 .info-row{{margin-bottom:8px;color:#555}}
-.info-row b{{color:#00a67e}}
-.approve-btn{{background:#00d4aa;color:#fff;padding:8px 12px;border:none;border-radius:8px;cursor:pointer;margin:2px;font-size:13px}}
+.info-row b{{color:#087c72}}
+.approve-btn{{background:#11c6a6;color:#fff;padding:8px 12px;border:none;border-radius:8px;cursor:pointer;margin:2px;font-size:13px}}
 .reject-btn{{background:#ff4d4d;color:#fff;padding:8px 12px;border:none;border-radius:8px;cursor:pointer;margin:2px;font-size:13px}}
-.edit-btn{{background:#ffaa00;color:#fff;padding:6px 10px;border:none;border-radius:8px;cursor:pointer;font-size:12px;text-decoration:none;display:inline-block;margin:2px}}
+.edit-btn{{background:#0d9e8a;color:#fff;padding:6px 10px;border:none;border-radius:8px;cursor:pointer;font-size:12px;text-decoration:none;display:inline-block;margin:2px}}
 .delete-btn{{background:#ff4d4d;color:#fff;padding:6px 10px;border:none;border-radius:8px;cursor:pointer;font-size:12px;text-decoration:none;display:inline-block;margin:2px}}
-.submit-btn{{background:#00d4aa;color:#fff;padding:10px 20px;border:none;border-radius:10px;font-weight:700;cursor:pointer}}
+.submit-btn{{background:#11c6a6;color:#fff;padding:10px 20px;border:none;border-radius:10px;font-weight:700;cursor:pointer}}
 .form-group{{margin-bottom:15px}}
-.form-group label{{display:block;margin-bottom:5px;color:#333;font-weight:600}}
-.form-group input,.form-group textarea,.form-group select{{width:100%;padding:10px;border:1px solid #ddd;border-radius:8px}}
-.announce{{border-left:4px solid #00d4aa;padding:15px;margin-bottom:12px;background:#f9f9f9;border-radius:8px;position:relative}}
+.form-group label{{display:block;margin-bottom:5px;color:#164d4b;font-weight:600}}
+.form-group input,.form-group textarea,.form-group select{{width:100%;padding:10px;border:1px solid #bfe9db;border-radius:8px;background:#f7fffb}}
+.announce{{border-left:4px solid #11c6a6;padding:15px;margin-bottom:12px;background:#e8f9f1;border-radius:8px;position:relative}}
 .notification-link{{display:block;color:inherit;text-decoration:none}}
 .notification-card{{cursor:pointer;transition:transform .15s,box-shadow .15s}}
 .notification-card:hover{{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.12)}}
-.announce h4{{margin-bottom:5px;color:#006644}}
-.announce small{{color:#777}}
+.announce h4{{margin-bottom:5px;color:#087c72}}
+.announce small{{color:#5f7f78}}
 .ann-actions{{position:absolute;top:10px;right:10px;display:flex;gap:6px}}
 .badge{{background:#ff4d4d;color:#fff;font-size:12px;font-weight:800;padding:3px 8px;border-radius:20px}}
 table{{width:100%;border-collapse:collapse;margin-top:10px}}
 th,td{{padding:12px 10px;text-align:left;border-bottom:1px solid #eee;font-size:14px}}
-th{{background:#00d4aa;color:#fff}}
-.report-item{{border-left:4px solid #00d4aa;padding:15px;margin-bottom:15px;background:#f9f9f9;border-radius:8px}}
-.cancel-btn{{background:#ddd;color:#333;padding:10px 20px;border:none;border-radius:10px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block}}
+th{{background:linear-gradient(90deg,#087c72,#11c6a6);color:#fff}}
+.report-item{{border-left:4px solid #11c6a6;padding:15px;margin-bottom:15px;background:#e8f9f1;border-radius:8px}}
+.cancel-btn{{background:#d8f4e9;color:#17594f;padding:10px 20px;border:none;border-radius:10px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-block}}
 .status-pending{{color:#ff9800;font-weight:bold}}
 .status-processing{{color:#2196f3;font-weight:bold}}
 .status-done{{color:#4caf50;font-weight:bold}}
+.status-cancelled{{color:#b42318;font-weight:bold}}
 .scanner-tabs{{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:15px}}
-.scan-tab{{padding:10px 16px;border:1px solid #ddd;border-radius:10px;background:#f5f5f5;cursor:pointer;font-weight:700}}
-.scan-tab.active{{background:#00d4aa;color:#fff;border-color:#00d4aa}}
-.scanner-panel{{padding:15px;border:1px solid #e6e6e6;border-radius:15px;background:#fbfffd}}
+.scan-tab{{padding:10px 16px;border:1px solid #bfe9db;border-radius:10px;background:#e8f9f1;cursor:pointer;font-weight:700}}
+.scan-tab.active{{background:#11c6a6;color:#fff;border-color:#11c6a6}}
+.scanner-panel{{padding:15px;border:1px solid #ccebe1;border-radius:15px;background:rgba(245,255,250,.88)}}
 .scanner-grid{{display:grid;grid-template-columns:1fr 1fr;gap:20px}}
-.scanner-grid label{{display:block;margin:8px 0 5px;font-weight:700;color:#333}}
-.scanner-grid input,.scanner-grid select{{width:100%;padding:11px;border:1px solid #ddd;border-radius:8px;margin-bottom:8px}}
+.scanner-grid label{{display:block;margin:8px 0 5px;font-weight:700;color:#164d4b}}
+.scanner-grid input,.scanner-grid select{{width:100%;padding:11px;border:1px solid #bfe9db;border-radius:8px;margin-bottom:8px;background:#f7fffb}}
 .scanner-video{{width:100%;height:260px;background:#111;border-radius:12px;object-fit:cover}}
 .scanner-actions{{display:flex;gap:8px;margin:8px 0}}
 .scan-status{{font-size:13px;color:#666;margin-top:8px}}
@@ -436,7 +451,9 @@ th{{background:#00d4aa;color:#fff}}
 </style>
 </head>
 <body>
-<div class="sidebar">
+<button type="button" id="menuToggle" class="menu-toggle" aria-label="Open menu" aria-expanded="false" title="Open menu"><span></span><span></span><span></span></button>
+<div id="menuBackdrop" class="menu-backdrop"></div>
+<div class="sidebar" id="appSidebar">
 <div class="sidebar-brand"><div class="brand-mark">🎓</div><div><div class="brand-title">SLSU-JGE</div><div class="brand-subtitle">STUDENT PORTAL</div></div></div>
 <div class="menu-section-label">MAIN MENU</div>
 {get_sidebar(active_page)}
@@ -453,6 +470,35 @@ th{{background:#00d4aa;color:#fff}}
   <a href="#" id="menuEdit" style="display:block;padding:10px 15px;color:#333;text-decoration:none">✏️ Edit Information</a>
   <a href="#" id="menuDelete" style="display:block;padding:10px 15px;color:#ff4d4d;text-decoration:none">🗑️ Delete Account</a>
 </div>
+<script>
+// Keep the navigation toggle isolated from page-specific scripts so it remains
+// usable even if another office page has a JavaScript error.
+(() => {{
+  const sidebar = document.getElementById('appSidebar');
+  const toggle = document.getElementById('menuToggle');
+  const backdrop = document.getElementById('menuBackdrop');
+  if (!sidebar || !toggle || !backdrop) return;
+
+  const setOpen = (open) => {{
+    sidebar.classList.toggle('is-open', open);
+    backdrop.classList.toggle('is-open', open);
+    toggle.classList.toggle('is-open', open);
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+    toggle.title = open ? 'Close menu' : 'Open menu';
+    try {{ localStorage.setItem('slsuMenuOpen', open ? '1' : '0'); }} catch (error) {{}}
+  }};
+
+  toggle.addEventListener('click', () => setOpen(!sidebar.classList.contains('is-open')));
+  backdrop.addEventListener('click', () => setOpen(false));
+  document.addEventListener('keydown', (event) => {{
+    if (event.key === 'Escape') setOpen(false);
+  }});
+  let shouldOpen = false;
+  try {{ shouldOpen = localStorage.getItem('slsuMenuOpen') === '1'; }} catch (error) {{}}
+  setOpen(shouldOpen);
+}})();
+</script>
 <script>
 const isAdmin = {is_admin};
 let selectedUser = null;
@@ -506,6 +552,8 @@ body::before{{content:'';position:absolute;top:0;left:0;width:100%;height:100%;b
 .logo-circle img{{width:100%;height:100%;object-fit:cover}}
 .campus-name{{color:#fff;font-size:18px;font-weight:700;margin-bottom:25px;letter-spacing:1px;text-shadow:0 2px 4px rgba(0,0,0,0.4)}}
 .input-box{{position:relative;margin-bottom:18px}}
+.input-box input[type="password"]{{padding-right:52px}}
+.password-toggle{{position:absolute;right:14px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:#fff;font-size:18px;cursor:pointer;padding:5px;line-height:1}}
 .input-box input{{width:100%;padding:16px 20px;border:none;border-radius:50px;background:rgba(255,255,255,0.25);backdrop-filter:blur(5px);color:#fff;font-size:16px;outline:none;border:1px solid rgba(255,255,255,0.4)}}
 .input-box input::placeholder{{color:rgba(255,255,255,0.9)}}
 .btn{{width:100%;padding:16px;border:none;border-radius:50px;background:#fff;color:#00695c;font-size:18px;font-weight:800;cursor:pointer;margin:25px 0;letter-spacing:3px}}
@@ -522,7 +570,7 @@ body::before{{content:'';position:absolute;top:0;left:0;width:100%;height:100%;b
 {success_html}
 <form action="/login" method="POST">
 <div class="input-box"><input type="text" name="username" placeholder="Username" required></div>
-<div class="input-box"><input type="password" name="password" placeholder="Password" required></div>
+<div class="input-box"><input type="password" name="password" placeholder="Password" required><button class="password-toggle" type="button" aria-label="Show password" title="Show password" onclick="const p=this.parentElement.querySelector('input'); p.type=p.type==='password'?'text':'password'; this.textContent=p.type==='password'?'👁':'🙈'; this.title=p.type==='password'?'Show password':'Hide password';">👁</button></div>
 <div class="options"><label><input type="checkbox"> Remember Me</label><a href="#">Forgot Password?</a></div>
 <button type="submit" class="btn">LOGIN</button>
 </form>
@@ -566,8 +614,15 @@ def signup():
         school_id = request.form.get('school_id', '').strip()
         course = request.form.get('course', '')
         major = request.form.get('major', '')
-        if course not in COURSES or major not in MAJORS_BY_COURSE.get(course, []):
+        if course not in COURSES:
             return redirect('/signup')
+        allowed_majors = MAJORS_BY_COURSE.get(course, [])
+        if allowed_majors and major not in allowed_majors:
+            return redirect('/signup')
+        if not allowed_majors and major not in ['', 'N/A']:
+            return redirect('/signup')
+        if not allowed_majors:
+            major = '' 
         year_level = request.form.get('year_level', '')
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
@@ -588,7 +643,9 @@ body::before{{content:'';position:absolute;top:0;left:0;width:100%;height:100%;b
 .logo-circle{{width:110px;height:110px;border-radius:50%;margin:0 auto 10px;overflow:hidden}}
 .logo-circle img{{width:100%;height:100%;object-fit:cover}}
 .campus-name{{color:#fff;font-size:18px;font-weight:700;margin-bottom:20px;letter-spacing:1px;text-shadow:0 2px 4px rgba(0,0,0,0.4)}}
-.input-box{{margin-bottom:12px}}
+.input-box{{position:relative;margin-bottom:12px}}
+.input-box input[type="password"]{{padding-right:48px}}
+.password-toggle{{position:absolute;right:13px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:#fff;font-size:17px;cursor:pointer;padding:5px;line-height:1}}
 .input-box input,.input-box select{{width:100%;padding:14px;border:none;border-radius:50px;background:rgba(255,255,255,0.25);backdrop-filter:blur(5px);color:#fff;font-size:15px;outline:none;border:1px solid rgba(255,255,255,0.4);text-align:center}}
 .input-box input::placeholder{{color:rgba(255,255,255,0.8)}}
 .input-box select option{{color:#222;background:#fff}}
@@ -621,7 +678,7 @@ body::before{{content:'';position:absolute;top:0;left:0;width:100%;height:100%;b
 </select>
 </div>
 <div class="input-box"><input type="text" name="username" placeholder="Create Username" required></div>
-<div class="input-box"><input type="password" name="password" placeholder="Create Password" required></div>
+<div class="input-box"><input type="password" name="password" placeholder="Create Password" required><button class="password-toggle" type="button" aria-label="Show password" title="Show password" onclick="const p=this.parentElement.querySelector('input'); p.type=p.type==='password'?'text':'password'; this.textContent=p.type==='password'?'👁':'🙈'; this.title=p.type==='password'?'Show password':'Hide password';">👁</button></div>
 <button type="submit" class="btn">SUBMIT FOR APPROVAL</button>
 </form>
 <a href="/" class="link">Already have an account? Login</a>
@@ -676,7 +733,9 @@ body::before{{content:'';position:absolute;top:0;left:0;width:100%;height:100%;b
 .logo-circle{{width:110px;height:110px;border-radius:50%;margin:0 auto 10px;overflow:hidden}}
 .logo-circle img{{width:100%;height:100%;object-fit:cover}}
 .campus-name{{color:#fff;font-size:18px;font-weight:700;margin-bottom:20px;letter-spacing:1px;text-shadow:0 2px 4px rgba(0,0,0,0.4)}}
-.input-box{{margin-bottom:12px}}
+.input-box{{position:relative;margin-bottom:12px}}
+.input-box input[type="password"]{{padding-right:48px}}
+.password-toggle{{position:absolute;right:13px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:#fff;font-size:17px;cursor:pointer;padding:5px;line-height:1}}
 .input-box input,.input-box select{{width:100%;padding:14px;border:none;border-radius:50px;background:rgba(255,255,255,0.25);backdrop-filter:blur(5px);color:#fff;font-size:15px;outline:none;border:1px solid rgba(255,255,255,0.4);text-align:center}}
 .input-box input::placeholder{{color:rgba(255,255,255,0.8)}}
 .input-box select option{{color:#222;background:#fff}}
@@ -707,7 +766,7 @@ body::before{{content:'';position:absolute;top:0;left:0;width:100%;height:100%;b
 </select>
 </div>
 <div class="input-box"><input type="text" name="username" placeholder="Create Username" required></div>
-<div class="input-box"><input type="password" name="password" placeholder="Create Password" required></div>
+<div class="input-box"><input type="password" name="password" placeholder="Create Password" required><button class="password-toggle" type="button" aria-label="Show password" title="Show password" onclick="const p=this.parentElement.querySelector('input'); p.type=p.type==='password'?'text':'password'; this.textContent=p.type==='password'?'👁':'🙈'; this.title=p.type==='password'?'Show password':'Hide password';">👁</button></div>
 <button type="submit" class="btn">SUBMIT FOR APPROVAL</button>
 </form>
 <a href="/" class="link">Already have an account? Login</a>
@@ -817,6 +876,8 @@ def submit_request():
     uname = get_current_user()
     if not uname:
         return redirect('/')
+    if users.get(uname, {}).get("role") != "student":
+        return redirect('/registrar')
 
     doc_type = request.form.get('document_type', '')
     purpose = request.form.get('purpose', '').strip()
@@ -843,15 +904,17 @@ def submit_request():
     if saved_major in {"-", "N/A", "None"}:
         saved_major = ""
 
-    if user_data.get("role") == "student" and not saved_major:
-        major_course = get_major_course_key(user_data.get("course"))
-        allowed_majors = MAJORS_BY_COURSE.get(major_course, [])
+    major_course = get_major_course_key(user_data.get("course"))
+    allowed_majors = MAJORS_BY_COURSE.get(major_course, [])
+    if allowed_majors and user_data.get("role") == "student" and not saved_major:
         submitted_major = request.form.get("major", "").strip()
         if submitted_major not in allowed_majors:
             return redirect('/registrar?error=missing_major')
         saved_major = submitted_major
         user_data["major"] = saved_major
         save_data()
+    elif not allowed_majors:
+        saved_major = ""
 
     new_request = {
         "id": len(grade_requests) + 1,
@@ -901,6 +964,8 @@ def update_request(req_id, status):
 
     for req in grade_requests:
         if req["id"] == req_id:
+            if req.get("status", "Pending") == "Cancelled":
+                return redirect('/registrar')
             req["status"] = status
             save_data()
 
@@ -927,6 +992,28 @@ def delete_request(req_id):
     return redirect('/registrar')
 
 
+@app.route('/cancel-request/<int:req_id>', methods=['POST'])
+def cancel_request(req_id):
+    uname = get_current_user()
+    if not uname:
+        return redirect('/')
+
+    for req in grade_requests:
+        if req.get("id") == req_id and req.get("requested_by") == uname:
+            if req.get("status", "Pending") != "Pending":
+                return redirect('/registrar?error=cancel_not_allowed')
+            req["status"] = "Cancelled"
+            save_data()
+            add_notification(
+                ["admin", "registrar_admin"],
+                f"Kinansela ni {users[uname].get('complete_name', uname)} ang {req.get('document_type', '').upper()} request.",
+                "/registrar"
+            )
+            return redirect('/registrar?cancelled=1')
+
+    return redirect('/registrar')
+
+
 @app.route('/uploads/<path:filename>')
 def uploaded_file(filename):
     uname = get_current_user()
@@ -934,7 +1021,7 @@ def uploaded_file(filename):
         return redirect('/')
 
     role = users.get(uname, {}).get("role")
-    if role not in ["admin", "registrar_admin"]:
+    if role not in ["admin", "registrar_admin", "maintenance_admin", "student"]:
         return redirect('/dashboard')
 
     return send_from_directory(UPLOAD_FOLDER, filename)
@@ -955,22 +1042,23 @@ def registrar():
     can_see_all = can_view_requests()
     success_msg = request.args.get('success') == '1'
     request_error = request.args.get('error', '')
+    cancelled_msg = request.args.get('cancelled') == '1'
 
     anns = announcements["registrar"]
     department_value = html_escape(str(user_data.get("course") or "-"), quote=True)
     saved_major = str(user_data.get("major") or "").strip()
     if saved_major in {"-", "N/A", "None"}:
         saved_major = ""
-    if saved_major:
-        major_field_html = f'<input type="text" value="{html_escape(saved_major, quote=True)}" readonly style="background:#f1f6f0;color:#42624e;font-weight:600">'
-    else:
-        major_course = get_major_course_key(user_data.get("course"))
-        major_options = MAJORS_BY_COURSE.get(major_course, [])
-        if major_options:
-            major_option_html = ''.join(f'<option value="{html_escape(option, quote=True)}">{html_escape(option)}</option>' for option in major_options)
-            major_field_html = f'<select name="major" required style="background:#f1f6f0;color:#42624e"><option value="">-- Piliin ang Major --</option>{major_option_html}</select>'
+    major_course = get_major_course_key(user_data.get("course"))
+    major_options = MAJORS_BY_COURSE.get(major_course, [])
+    major_group_html = ""
+    if major_options:
+        if saved_major in major_options:
+            major_field_html = f'<input type="text" value="{html_escape(saved_major, quote=True)}" readonly style="background:#e7f8f0;color:#17675e;font-weight:600">'
         else:
-            major_field_html = '<input type="text" value="-" readonly style="background:#f1f6f0;color:#42624e;font-weight:600">' 
+            major_option_html = ''.join(f'<option value="{html_escape(option, quote=True)}">{html_escape(option)}</option>' for option in major_options)
+            major_field_html = f'<select name="major" required style="background:#e7f8f0;color:#17675e"><option value="">-- Piliin ang Major --</option>{major_option_html}</select>'
+        major_group_html = f'<div class="form-group"><label>Major:</label>{major_field_html}</div>'
     content = office_hero("Registrar Office", "Document services, student requests, and registrar announcements.", "📄", [("▤", "Document Requests", len(grade_requests), "sage"), ("◷", "Office Announcements", len(anns), "gold"), ("✓", "Accepted Formats", "PDF · JPG · PNG", "")]) + '<div class="card"><h2>📢 Announcements</h2>' 
 
     if can_edit:
@@ -1007,7 +1095,7 @@ def registrar():
 
     content += '</div>'
 
-    content += '<div class="card"><h2>📄 Request Document</h2>'
+    content += '<!-- STUDENT_REQUEST_FORM_START --><div class="card"><h2>📄 Request Document</h2>'
 
     if success_msg:
         content += '<p style="color:green;font-weight:bold;">✅ Request submitted successfully!</p>'
@@ -1031,14 +1119,11 @@ def registrar():
 </div>
 <div class="form-group">
 <label>Department / Course:</label>
-<input type="text" value="__REQUEST_DEPARTMENT__" readonly style="background:#f1f6f0;color:#42624e;font-weight:600">
+<input type="text" value="__REQUEST_DEPARTMENT__" readonly style="background:#e7f8f0;color:#17675e;font-weight:600">
 </div>
-<div class="form-group">
-<label>Major:</label>
-__REQUEST_MAJOR_FIELD__
-</div>
+__REQUEST_MAJOR_GROUP__
 
-<div id="gradeExtraFields" style="display:none; padding-left:10px; border-left:3px solid #00d4aa; margin:10px 0;">
+<div id="gradeExtraFields" style="display:none; padding-left:10px; border-left:3px solid #11c6a6; margin:10px 0;">
 <div class="form-group">
 <label>Year Level:</label>
 <select name="grade_year" id="grade_year">
@@ -1060,7 +1145,7 @@ __REQUEST_MAJOR_FIELD__
 </div>
 </div>
 
-<div id="corFileField" style="display:none; padding:12px; border-left:3px solid #00d4aa; margin:10px 0; background:#f7fffc; border-radius:8px;">
+<div id="corFileField" style="display:none; padding:12px; border-left:3px solid #11c6a6; margin:10px 0; background:#e8f9f1; border-radius:8px;">
 <div class="form-group">
 <label>📎 Add File — COR (Certificate of Registration):</label>
 <input type="file" name="cor_file" id="cor_file" accept=".pdf,.jpg,.jpeg,.png">
@@ -1106,8 +1191,14 @@ function toggleGradeFields() {
   }
 }
 </script>
-</div>'''
-    content = content.replace('__REQUEST_DEPARTMENT__', department_value).replace('__REQUEST_MAJOR_FIELD__', major_field_html)
+</div><!-- STUDENT_REQUEST_FORM_END -->'''
+    if role != "student":
+        start = content.find('<!-- STUDENT_REQUEST_FORM_START -->')
+        end_marker = '<!-- STUDENT_REQUEST_FORM_END -->'
+        end = content.find(end_marker, start)
+        if start != -1 and end != -1:
+            content = content[:start] + content[end + len(end_marker):]
+    content = content.replace('__REQUEST_DEPARTMENT__', department_value).replace('__REQUEST_MAJOR_GROUP__', major_group_html)
 
     doc_labels = {
         "grades": "Copy of Grades",
@@ -1174,20 +1265,26 @@ function toggleGradeFields() {
 
     else:
         content += '<div class="card"><h2>📋 My Requests</h2>'
+        if cancelled_msg:
+            content += '<p style="color:#b42318;font-weight:bold;">✅ Nakansela na ang request mo.</p>'
+        elif request_error == "cancel_not_allowed":
+            content += '<p style="color:#d32f2f;font-weight:bold;">Hindi na puwedeng i-cancel dahil naproseso na ang request.</p>'
 
         my_reqs = [r for r in grade_requests if r["requested_by"] == uname]
 
         if not my_reqs:
             content += '<p>Wala ka pang request.</p>'
         else:
-            content += '''<table>
+            major_header = '<th>Major</th>' if major_options else ''
+            content += f'''<table>
 <tr>
 <th>Document</th>
 <th>Department / Course</th>
-<th>Major</th>
+{major_header}
 <th>Details</th>
 <th>Purpose</th>
 <th>Status</th>
+<th>Action</th>
 </tr>'''
 
             for req in reversed(my_reqs):
@@ -1204,16 +1301,24 @@ function toggleGradeFields() {
                     "Pending": "status-pending",
                     "Processing": "status-processing",
                     "Ready": "status-done",
-                    "Completed": "status-done"
+                    "Completed": "status-done",
+                    "Cancelled": "status-cancelled"
                 }.get(req["status"], "")
+
+                major_cell = f'<td>{req.get("major", "-") or "-"}</td>' if major_options else ''
+                cancel_action = (
+                    f'<form method="POST" action="/cancel-request/{req["id"]}" onsubmit="return confirm(\'Cancel this document request?\')" style="margin:0"><button type="submit" class="delete-btn">Cancel</button></form>'
+                    if req.get("status", "Pending") == "Pending" else '-'
+                )
 
                 content += f'''<tr>
 <td>{doc_label}</td>
 <td>{req.get("department", req.get("course", "-"))}</td>
-<td>{req.get("major", "-") or "-"}</td>
+{major_cell}
 <td>{details}</td>
 <td>{req["purpose"]}</td>
 <td class="{status_class}">{req["status"]}</td>
+<td>{cancel_action}</td>
 </tr>'''
 
             content += '</table>'
@@ -1297,11 +1402,24 @@ def guard_log():
         'student_name': student_name or visitor_name, 'course': course,
         'year_level': year_level, 'vehicle_plate': vehicle_plate,
         'purpose': purpose, 'direction': direction,
-        'guard': users[uname].get('complete_name', uname),
+        'guard': guard_on_duty or users[uname].get('complete_name', uname),
         'date_time': datetime.now().strftime('%Y-%m-%d %I:%M:%S %p')
     })
     save_data()
     return redirect('/guard?success=1')
+
+
+@app.route('/guard/duty', methods=['POST'])
+def set_guard_on_duty():
+    global guard_on_duty
+    if not can_manage("guard"):
+        return redirect('/guard')
+    guard_name = request.form.get('guard_on_duty', '').strip()
+    if not guard_name:
+        return redirect('/guard?error=missing_guard')
+    guard_on_duty = guard_name[:100]
+    save_data()
+    return redirect('/guard?duty_saved=1')
 
 @app.route('/guard/delete-log/<int:log_id>')
 def guard_delete_log(log_id):
@@ -1322,6 +1440,7 @@ def guard():
     can_edit = can_manage("guard")
     anns = announcements["guard"]
     success = request.args.get('success') == '1'
+    duty_saved = request.args.get('duty_saved') == '1'
     error = request.args.get('error', '')
     unique_vehicles = {str(log.get("vehicle_plate", "")).strip().upper() for log in guard_logs if log.get("vehicle_plate")}
     content = office_hero("Guard Office", "Campus entry monitoring, ID scanning, and access logs.", "🛡️", [("▣", "Registered Students", sum(1 for account in users.values() if account.get("role") == "student"), "sage"), ("◉", "Access Logs", len(guard_logs), "gold"), ("🚗", "Recorded Vehicles", len(unique_vehicles), "clay")]) + '<div class="card"><h2>📢 Announcements</h2>' 
@@ -1343,12 +1462,21 @@ def guard():
     content += '</div>'
 
     if can_edit:
+        if duty_saved:
+            content += '<div class="card" style="color:#087443;font-weight:700">✅ Na-save ang naka-duty na guard.</div>'
+        content += f'''<div class="card"><h2>👮 Guard on Duty</h2>
+<form method="POST" action="/guard/duty" class="form-group">
+<label>Pangalan ng guard na naka-duty:</label>
+<input type="text" name="guard_on_duty" value="{html_escape(guard_on_duty, quote=True)}" maxlength="100" placeholder="Ilagay ang pangalan ng guard" required>
+<button type="submit" class="submit-btn">💾 I-save ang Naka-duty</button>
+</form></div>'''
         if success: content += '<div class="card" style="border-left:5px solid #00a67e;color:#087443;font-weight:700">✅ Guard log successfully recorded.</div>'
         if error == 'missing_id': content += '<div class="card" style="color:#d32f2f;font-weight:700">⚠️ Kailangan ang School ID.</div>'
         elif error == 'unregistered_id': content += '<div class="card" style="color:#d32f2f;font-weight:700">❌ Hindi tugma ang pangalan at School ID sa registered student.</div>'
         elif error == 'missing_vehicle': content += '<div class="card" style="color:#d32f2f;font-weight:700">⚠️ Kailangan ang vehicle plate/scan value.</div>'
         elif error == 'unregistered_driver': content += '<div class="card" style="color:#d32f2f;font-weight:700">❌ Hindi registered/approved ang School ID ng driver.</div>'
         elif error == 'missing_manual': content += '<div class="card" style="color:#d32f2f;font-weight:700">⚠️ Maglagay ng kahit pangalan, School ID, o vehicle plate.</div>'
+        elif error == 'missing_guard': content += '<div class="card" style="color:#d32f2f;font-weight:700">⚠️ Ilagay muna ang pangalan ng guard na naka-duty.</div>'
         content += '''<div class="card"><h2>🛡️ Guard Entry & Exit Scanner</h2>
 <p style="color:#666;margin-bottom:15px">I-scan ang student ID o vehicle QR/barcode. Maaari ring maglagay ng detalye nang mano-mano.</p>
 <div class="scanner-tabs"><button type="button" class="scan-tab active" onclick="showScanner('idScanner', this)">🪪 ID Scanner</button>
@@ -1458,6 +1586,20 @@ def maintenance():
         return redirect('/dashboard')
 
     if request.method == "POST":
+        if role != "student":
+            return redirect('/maintenance')
+        image_file = request.files.get("maintenance_image")
+        image_filename = ""
+        if image_file and image_file.filename:
+            if request.content_length and request.content_length > 5 * 1024 * 1024:
+                return redirect('/maintenance?error=image_too_large')
+            safe_name = secure_filename(image_file.filename)
+            extension = safe_name.rsplit(".", 1)[-1].lower() if "." in safe_name else ""
+            if extension not in ALLOWED_IMAGE_EXTENSIONS:
+                return redirect('/maintenance?error=invalid_image')
+            image_filename = f"maintenance_{datetime.now().strftime('%Y%m%d%H%M%S%f')}_{safe_name}"
+            image_file.save(os.path.join(UPLOAD_FOLDER, image_filename))
+
         report_id = max([r.get("id", 0) for r in maintenance_reports if isinstance(r, dict)] + [0]) + 1
         maintenance_reports.append({
             'id': report_id,
@@ -1465,6 +1607,7 @@ def maintenance():
             'location': request.form.get('location', '').strip(),
             'reported_by': request.form.get('reported_by', '').strip(),
             'reported_by_user': uname,
+            'image': image_filename,
             'status': 'Pending',
             'date_time': datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
         })
@@ -1519,13 +1662,21 @@ def maintenance():
 
     content += '</div>'
 
-    content += """<div class="card"><h2>🔧 Report a Maintenance Issue</h2>
-<form method="POST" class="form-group">
+    if role == "student":
+        content += """<div class="card"><h2>🔧 Report a Maintenance Issue</h2>
+<form method="POST" enctype="multipart/form-data" class="form-group">
 <div class="form-group"><label>*Description - Anong sira</label><textarea name="description" rows="3" required></textarea></div>
 <div class="form-group"><label>*Location - Saan</label><input type="text" name="location" required></div>
 <div class="form-group"><label>*Reported by - Sino ang nagreport</label><input type="text" name="reported_by" required></div>
+<div class="form-group"><label>Larawan ng sira (PNG/JPG, hanggang 5 MB)</label><input type="file" name="maintenance_image" accept="image/png,image/jpeg,.png,.jpg,.jpeg"></div>
 <button type="submit" class="submit-btn">Submit Report</button>
 </form></div>"""
+
+    image_error = request.args.get("error")
+    if image_error == "invalid_image":
+        content = '<div class="card" style="color:#b42318">Hindi suportado ang larawan. PNG o JPG lang ang puwede.</div>' + content
+    elif image_error == "image_too_large":
+        content = '<div class="card" style="color:#b42318">Sobra sa 5 MB ang larawan. Pumili ng mas maliit na file.</div>' + content
 
     content += '<div class="card"><h2>Submitted Reports</h2>'
 
@@ -1550,10 +1701,16 @@ def maintenance():
 <a href="/delete-maintenance/{report_id}" class="delete-btn" onclick="return confirm('Burahin ang maintenance report na ito?')">🗑️ Delete</a>
 </div>"""
 
+            image_html = ""
+            image_name = report.get("image", "")
+            if image_name:
+                image_html = f'<p><b>Larawan:</b><br><a href="/uploads/{html_escape(image_name)}" target="_blank"><img src="/uploads/{html_escape(image_name)}" alt="Larawan ng maintenance issue" style="display:block;max-width:min(100%,420px);max-height:280px;object-fit:contain;margin-top:8px;border-radius:10px;border:1px solid #dce6e3"></a></p>'
+
             content += f"""<div class="report-item">
 <p><b>Issue:</b> {report.get('description', '')}</p>
 <p><b>Location:</b> {report.get('location', '')}</p>
 <p><b>Reported by:</b> {report.get('reported_by', '')}</p>
+{image_html}
 <p><b>Date & Time:</b> {report.get('date_time', '-')}</p>
 <p><b>Status:</b> <span class="{status_class}">{status}</span></p>
 {actions}
@@ -1802,8 +1959,12 @@ def dashboard():
     content = '<div class="dashboard-hero">'
     content += '<div class="hero-date">SLSU-JGE • STUDENT INFORMATION SYSTEM</div>'
     content += f'<div class="hero-title">Magandang araw, {user_data.get("complete_name", "User").split()[0]}! 👋</div>'
-    content += '<div class="hero-subtitle">Subaybayan ang mga estudyante, kahilingan, at aktibidad ng campus sa iisang lugar.</div>'
-    content += '<a class="hero-link" href="/registered">▤ &nbsp; Tingnan ang Records</a></div>'
+    if role == "student":
+        content += '<div class="hero-subtitle">Tingnan ang impormasyon mo at mag-request ng school documents.</div>'
+        content += '<a class="hero-link" href="/registrar">📄 &nbsp; Document Requests</a></div>'
+    else:
+        content += '<div class="hero-subtitle">Subaybayan ang mga estudyante, kahilingan, at aktibidad ng campus sa iisang lugar.</div>'
+        content += '<a class="hero-link" href="/registered">▤ &nbsp; Tingnan ang Records</a></div>'
 
     if role == "admin":
         stats = [
@@ -1821,9 +1982,23 @@ def dashboard():
     else:
         stats = [("📚", "Course", user_data.get("course", "-"), "#e2f7f0"), ("🎓", "Year Level", user_data.get("year_level", "-"), "#e8efff"), ("🔔", "Unread Notifications", len(unread), "#fff2dc"), ("📋", "Document Requests", sum(1 for r in grade_requests if r.get("student_name") == user_data.get("complete_name")), "#ffe9e6")]
 
+    stat_links = {
+        "Kabuuang Estudyante": "/registered",
+        "Pending Accounts": "/pending",
+        "Document Requests": "/registrar",
+        "Maintenance Reports": "/maintenance",
+        "Guard Logs": "/guard",
+        "Guard Announcements": "/guard",
+        "Registrar Announcements": "/registrar",
+        "Announcements": {"maintenance_admin": "/maintenance"}.get(role, "/dashboard"),
+        "Unread Notifications": "/notifications",
+        "Course": "/profile",
+        "Year Level": "/profile"
+    }
     content += '<div class="dashboard-stats">'
     for icon, label, value, color in stats:
-        content += f'<div class="stat-card"><div class="stat-top"><span class="stat-icon" style="background:{color}">{icon}</span><span>{label}</span></div><div class="stat-number">{value}</div></div>'
+        stat_href = stat_links.get(label, "/dashboard")
+        content += f'<a class="stat-card-link" href="{stat_href}"><div class="stat-card"><div class="stat-top"><span class="stat-icon" style="background:{color}">{icon}</span><span>{label}</span></div><div class="stat-number">{value}</div></div></a>'
     content += '</div><div class="dashboard-columns"><div>'
 
     course_counts = {course: sum(1 for _, student in student_accounts if student.get("course") == course) for course in COURSES}
@@ -1835,14 +2010,16 @@ def dashboard():
         content += f'<div class="course-bar-wrap"><span>{count}</span><div class="course-bar" style="height:{height}px;background:{bar_color}"></div><span>{course}</span></div>'
     content += '</div></div>'
 
-    recent_students = list(reversed(student_accounts))[:5]
-    content += '<div class="card"><h2>Recently Registered Students</h2><div class="dashboard-table"><table><tr><th>STUDENT</th><th>SCHOOL ID</th><th>COURSE / MAJOR</th><th>YEAR</th></tr>'
-    if recent_students:
-        for _, student in recent_students:
-            content += f'<tr><td>{student.get("complete_name", "-")}</td><td>{student.get("school_id", "-")}</td><td>{student.get("course", "-")} · {student.get("major", "-")}</td><td>{student.get("year_level", "-")}</td></tr>'
-    else:
-        content += '<tr><td colspan="4" style="text-align:center;color:#829597">Wala pang registered student.</td></tr>'
-    content += '</table></div></div></div><div><div class="card"><h2>Mga Anunsyo</h2>'
+    if role != "student":
+        recent_students = list(reversed(student_accounts))[:5]
+        content += '<div class="card"><h2>Recently Registered Students</h2><div class="dashboard-table"><table><tr><th>STUDENT</th><th>SCHOOL ID</th><th>COURSE / MAJOR</th><th>YEAR</th></tr>'
+        if recent_students:
+            for _, student in recent_students:
+                content += f'<tr><td>{student.get("complete_name", "-")}</td><td>{student.get("school_id", "-")}</td><td>{student.get("course", "-")} · {student.get("major", "-")}</td><td>{student.get("year_level", "-")}</td></tr>'
+        else:
+            content += '<tr><td colspan="4" style="text-align:center;color:#829597">Wala pang registered student.</td></tr>'
+        content += '</table></div>'
+    content += '</div></div><div><div class="card"><h2>Mga Anunsyo</h2>'
 
     role_office = {"registrar_admin": "registrar", "guard_admin": "guard", "maintenance_admin": "maintenance"}.get(role)
     notice_list = announcements.get(role_office, []) if role_office else [item for office_items in announcements.values() if isinstance(office_items, list) for item in office_items]
@@ -1986,8 +2163,3 @@ if __name__ == '__main__':
         print('Install cryptography to enable HTTPS for camera access over a LAN: python -m pip install cryptography')
 
     app.run(debug=True, host='0.0.0.0', port=5000, ssl_context=ssl_mode)
-
-
-
-
-
