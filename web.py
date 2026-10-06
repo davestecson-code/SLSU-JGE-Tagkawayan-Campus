@@ -2,6 +2,7 @@ from flask import Flask, request, render_template_string, redirect, send_from_di
 from werkzeug.utils import secure_filename
 import os, json, re, subprocess, threading
 from datetime import datetime
+from html import escape as html_escape
 
 app = Flask(__name__)
 app.secret_key = "slsu_jge_secure_key_2026"
@@ -51,6 +52,26 @@ MAJORS_BY_COURSE = {
     "BSBA": ["Marketing Management", "Financial Management"],
     "BSED": ["English", "Math", "Science"]
 }
+COURSE_MAJOR_ALIASES = {
+    "BSINFORMATIONTECHNOLOGY": "BSIT",
+    "BACHELOROFSCIENCEININFORMATIONTECHNOLOGY": "BSIT",
+    "BSBUSINESSADMINISTRATION": "BSBA",
+    "BACHELOROFSCIENCEINBUSINESSADMINISTRATION": "BSBA",
+    "BACHELOROFSECONDARYEDUCATION": "BSED"
+}
+
+
+def get_major_course_key(course):
+    compact_course = re.sub(r"[^A-Z0-9]", "", str(course or "").upper())
+    if compact_course in MAJORS_BY_COURSE:
+        return compact_course
+    if compact_course in COURSE_MAJOR_ALIASES:
+        return COURSE_MAJOR_ALIASES[compact_course]
+    for course_key in MAJORS_BY_COURSE:
+        if compact_course.startswith(course_key):
+            return course_key
+    return ""
+
 YEAR_LEVELS = ["1st Year", "2nd Year", "3rd Year", "4th Year"]
 
 
@@ -297,8 +318,8 @@ def dashboard_template(content, active_page, page_title):
 <style>
 *{{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',sans-serif}}
 :root{{--green:#0b9e88;--deep:#087d70;--ink:#193f40;--muted:#75898b;--line:#edf2f2;--soft:#f3f8f7}}
-body{{min-height:100vh;display:flex;background:#f1f7f6;color:var(--ink)}}
-.sidebar{{width:252px;min-height:100vh;flex:none;background:#fff;padding:18px 16px;display:flex;flex-direction:column;gap:8px;position:relative;z-index:2;border-right:1px solid #eaf0ef}}
+body{{min-height:100vh;display:flex;background:linear-gradient(rgba(241,247,246,.80),rgba(241,247,246,.80)),url('/bg.jpg') center center / cover fixed;color:var(--ink)}}
+.sidebar{{width:252px;height:100vh;min-height:100vh;flex:none;background:#fff;padding:18px 16px;display:flex;flex-direction:column;gap:8px;position:sticky;top:0;align-self:flex-start;z-index:2;border-right:1px solid #eaf0ef;overflow-y:auto}}
 .sidebar-brand{{height:68px;display:flex;align-items:center;gap:12px;padding:0 8px 13px;border-bottom:1px solid var(--line);margin-bottom:12px}}
 .brand-mark{{width:42px;height:42px;display:grid;place-items:center;border-radius:14px;background:#e1f6f0;color:var(--deep);font-size:21px}}
 .brand-title{{font-size:15px;font-weight:800;color:#193f40;letter-spacing:.3px}}
@@ -307,7 +328,17 @@ body{{min-height:100vh;display:flex;background:#f1f7f6;color:var(--ink)}}
 .sidebar a{{text-decoration:none}}
 .menu-btn{{padding:12px 13px;border:0;border-radius:11px;background:transparent;color:#647a7d;font-size:13px;font-weight:500;cursor:pointer;text-align:left;width:100%;display:flex;justify-content:space-between;align-items:center;transition:.15s}}
 .menu-btn.active{{background:#e8f7f3;color:var(--deep);font-weight:700;box-shadow:inset 3px 0 var(--green)}}
-.menu-btn:hover{{background:#f1f8f6;color:var(--deep)}}
+.menu-btn:hover{{filter:saturate(1.15);transform:translateX(2px)}}
+.sidebar a[href="/dashboard"] .menu-btn:not(.active),
+.sidebar a[href="/pending"] .menu-btn:not(.active),
+.sidebar a[href="/registered"] .menu-btn:not(.active),
+.sidebar a[href="/registrar"] .menu-btn:not(.active),
+.sidebar a[href="/guard"] .menu-btn:not(.active),
+.sidebar a[href="/maintenance"] .menu-btn:not(.active),
+.sidebar a[href="/profile"] .menu-btn:not(.active),
+.sidebar a[href="/notifications"] .menu-btn:not(.active){{background:#f1f6f0;color:#42624e}}
+.sidebar a[href="/pending"] .menu-btn:not(.active){{background:#f8f3e7;color:#806a35}}
+.sidebar a .menu-btn.active{{background:#176d55;color:#fff;box-shadow:inset 3px 0 #d6b46b}}
 .menu-btn.logout{{color:#cf5149;background:#fff2f0!important;margin-top:auto}}
 .main{{flex:1;min-width:0;padding:28px 34px 24px;overflow-y:auto}}
 .header{{display:flex;align-items:center;justify-content:space-between;margin-bottom:23px;color:var(--ink)}}
@@ -336,6 +367,22 @@ body{{min-height:100vh;display:flex;background:#f1f7f6;color:var(--ink)}}
 .course-chart{{display:flex;align-items:flex-end;gap:clamp(8px,2.4vw,24px);height:176px;padding:20px 10px 0;border-bottom:1px solid var(--line)}}
 .course-bar-wrap{{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:8px;color:#75898b;font-size:10px}}
 .course-bar{{width:min(38px,70%);min-height:6px;border-radius:7px 7px 2px 2px;background:#0ba88f}}
+.office-hero{{display:flex;align-items:center;gap:18px;min-height:116px;padding:20px 25px;border-radius:18px;background:linear-gradient(115deg,#123e33,#176d55);color:#fff;margin-bottom:16px;position:relative;overflow:hidden}}
+.office-hero:after{{content:"";position:absolute;right:-35px;top:-90px;width:210px;height:210px;border-radius:50%;background:#fff;opacity:.055}}
+.office-hero-brand{{width:68px;height:68px;border-radius:15px;background:#fff;display:grid;place-items:center;flex:none;overflow:hidden}}
+.office-hero-brand img{{width:62px;height:62px;object-fit:contain}}
+.office-hero-copy{{position:relative;z-index:1}}
+.office-kicker{{font-size:9px;letter-spacing:1.2px;color:#d7ead9;font-weight:700}}
+.office-hero h2{{font-size:21px;color:#fff;margin:6px 0 4px}}
+.office-hero p{{font-size:11px;color:#e0eee4}}
+.office-metrics{{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:17px}}
+.office-metric{{display:flex;align-items:center;gap:11px;background:#fff;border:1px solid #edf1ed;border-radius:14px;padding:13px 16px;box-shadow:0 5px 18px rgba(29,67,49,.05)}}
+.office-metric-icon{{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:#e3efe5;color:#286547;font-size:15px;font-weight:700}}
+.office-metric-icon.gold{{background:#f8f0df;color:#916f2d}}
+.office-metric-icon.sage{{background:#e7f1e5;color:#287754}}
+.office-metric-icon.clay{{background:#f5e9e4;color:#9b6351}}
+.office-metric-label{{font-size:10px;color:#75877b}}
+.office-metric-value{{font-size:19px;font-weight:800;color:#173d31;margin-top:2px}}
 .dashboard-notice{{padding:13px;border-radius:12px;margin-top:11px;background:#f0faf7}}
 .dashboard-notice:nth-of-type(2n){{background:#fff8ed}}
 .dashboard-notice-title{{font-size:12px;font-weight:700;color:#345657;margin-bottom:6px}}
@@ -434,6 +481,13 @@ document.getElementById('menuDelete').onclick = function(e) {{
 </script>
 </body></html>"""
 
+
+
+def office_hero(title, subtitle, icon, metrics):
+    html = f'''<section class="office-hero"><div class="office-hero-brand"><img src="/logo.png" alt="SLSU logo"></div><div class="office-hero-copy"><span class="office-kicker">SLSU-JGE · OFFICE WORKSPACE</span><h2>{icon} {title}</h2><p>{subtitle}</p></div></section><div class="office-metrics">'''
+    for metric_icon, label, value, tone in metrics:
+        html += f'''<div class="office-metric"><span class="office-metric-icon {tone}">{metric_icon}</span><div><div class="office-metric-label">{label}</div><div class="office-metric-value">{value}</div></div></div>'''
+    return html + '</div>'
 
 def render_login(error_msg=None, success_msg=None):
     error_html = f'<p style="color:#ffeb3b;margin-bottom:10px;font-weight:600;text-shadow:0 1px 2px rgba(0,0,0,0.3)">{error_msg}</p>' if error_msg else ""
@@ -785,12 +839,27 @@ def submit_request():
         return redirect('/registrar')
 
     user_data = users[uname]
+    saved_major = str(user_data.get("major") or "").strip()
+    if saved_major in {"-", "N/A", "None"}:
+        saved_major = ""
+
+    if user_data.get("role") == "student" and not saved_major:
+        major_course = get_major_course_key(user_data.get("course"))
+        allowed_majors = MAJORS_BY_COURSE.get(major_course, [])
+        submitted_major = request.form.get("major", "").strip()
+        if submitted_major not in allowed_majors:
+            return redirect('/registrar?error=missing_major')
+        saved_major = submitted_major
+        user_data["major"] = saved_major
+        save_data()
 
     new_request = {
         "id": len(grade_requests) + 1,
         "student_name": user_data.get('complete_name'),
         "school_id": user_data.get('school_id'),
         "course": user_data.get('course'),
+        "department": user_data.get('course'),
+        "major": saved_major,
         "year_level": user_data.get('year_level'),
         "document_type": doc_type,
         "purpose": purpose,
@@ -877,7 +946,8 @@ def registrar():
     if not uname:
         return redirect('/')
 
-    role = users[uname].get("role")
+    user_data = users[uname]
+    role = user_data.get("role")
     if role not in ["admin", "registrar_admin", "student"]:
         return redirect('/dashboard')
 
@@ -887,7 +957,21 @@ def registrar():
     request_error = request.args.get('error', '')
 
     anns = announcements["registrar"]
-    content = '<div class="card"><h2>📢 Announcements</h2>'
+    department_value = html_escape(str(user_data.get("course") or "-"), quote=True)
+    saved_major = str(user_data.get("major") or "").strip()
+    if saved_major in {"-", "N/A", "None"}:
+        saved_major = ""
+    if saved_major:
+        major_field_html = f'<input type="text" value="{html_escape(saved_major, quote=True)}" readonly style="background:#f1f6f0;color:#42624e;font-weight:600">'
+    else:
+        major_course = get_major_course_key(user_data.get("course"))
+        major_options = MAJORS_BY_COURSE.get(major_course, [])
+        if major_options:
+            major_option_html = ''.join(f'<option value="{html_escape(option, quote=True)}">{html_escape(option)}</option>' for option in major_options)
+            major_field_html = f'<select name="major" required style="background:#f1f6f0;color:#42624e"><option value="">-- Piliin ang Major --</option>{major_option_html}</select>'
+        else:
+            major_field_html = '<input type="text" value="-" readonly style="background:#f1f6f0;color:#42624e;font-weight:600">' 
+    content = office_hero("Registrar Office", "Document services, student requests, and registrar announcements.", "📄", [("▤", "Document Requests", len(grade_requests), "sage"), ("◷", "Office Announcements", len(anns), "gold"), ("✓", "Accepted Formats", "PDF · JPG · PNG", "")]) + '<div class="card"><h2>📢 Announcements</h2>' 
 
     if can_edit:
         content += '''
@@ -931,6 +1015,8 @@ def registrar():
         content += '<p style="color:#d32f2f;font-weight:bold;">⚠️ Para sa CTC, kailangan mag-upload ng COR.</p>'
     elif request_error == "invalid_cor":
         content += '<p style="color:#d32f2f;font-weight:bold;">⚠️ Invalid file. COR must be PDF, JPG, JPEG, or PNG.</p>'
+    elif request_error == "missing_major":
+        content += '<p style="color:#d32f2f;font-weight:bold;">⚠️ Piliin muna ang major. Isi-save ito sa profile mo para awtomatiko na sa susunod na request.</p>'
 
     content += '''
 <form method="POST" action="/submit-request" class="form-group" id="requestForm" enctype="multipart/form-data">
@@ -942,6 +1028,14 @@ def registrar():
 <option value="tor">📑 Transcript of Records (TOR)</option>
 <option value="ctc">📋 Certified True Copy (CTC)</option>
 </select>
+</div>
+<div class="form-group">
+<label>Department / Course:</label>
+<input type="text" value="__REQUEST_DEPARTMENT__" readonly style="background:#f1f6f0;color:#42624e;font-weight:600">
+</div>
+<div class="form-group">
+<label>Major:</label>
+__REQUEST_MAJOR_FIELD__
 </div>
 
 <div id="gradeExtraFields" style="display:none; padding-left:10px; border-left:3px solid #00d4aa; margin:10px 0;">
@@ -1013,6 +1107,7 @@ function toggleGradeFields() {
 }
 </script>
 </div>'''
+    content = content.replace('__REQUEST_DEPARTMENT__', department_value).replace('__REQUEST_MAJOR_FIELD__', major_field_html)
 
     doc_labels = {
         "grades": "Copy of Grades",
@@ -1030,6 +1125,8 @@ function toggleGradeFields() {
 <tr>
 <th>Student Name</th>
 <th>School ID</th>
+<th>Department / Course</th>
+<th>Major</th>
 <th>Document</th>
 <th>Details</th>
 <th>Purpose</th>
@@ -1057,6 +1154,8 @@ function toggleGradeFields() {
                 content += f'''<tr>
 <td>{req["student_name"]}</td>
 <td>{req["school_id"]}</td>
+<td>{req.get("department", req.get("course", "-"))}</td>
+<td>{req.get("major", "-") or "-"}</td>
 <td>{doc_label}</td>
 <td>{details}</td>
 <td>{req["purpose"]}</td>
@@ -1084,6 +1183,8 @@ function toggleGradeFields() {
             content += '''<table>
 <tr>
 <th>Document</th>
+<th>Department / Course</th>
+<th>Major</th>
 <th>Details</th>
 <th>Purpose</th>
 <th>Status</th>
@@ -1108,6 +1209,8 @@ function toggleGradeFields() {
 
                 content += f'''<tr>
 <td>{doc_label}</td>
+<td>{req.get("department", req.get("course", "-"))}</td>
+<td>{req.get("major", "-") or "-"}</td>
 <td>{details}</td>
 <td>{req["purpose"]}</td>
 <td class="{status_class}">{req["status"]}</td>
@@ -1220,7 +1323,8 @@ def guard():
     anns = announcements["guard"]
     success = request.args.get('success') == '1'
     error = request.args.get('error', '')
-    content = '<div class="card"><h2>📢 Announcements</h2>'
+    unique_vehicles = {str(log.get("vehicle_plate", "")).strip().upper() for log in guard_logs if log.get("vehicle_plate")}
+    content = office_hero("Guard Office", "Campus entry monitoring, ID scanning, and access logs.", "🛡️", [("▣", "Registered Students", sum(1 for account in users.values() if account.get("role") == "student"), "sage"), ("◉", "Access Logs", len(guard_logs), "gold"), ("🚗", "Recorded Vehicles", len(unique_vehicles), "clay")]) + '<div class="card"><h2>📢 Announcements</h2>' 
     if can_edit:
         content += '''<form method="POST" action="/guard/add" class="form-group">
 <div class="form-group"><label>Title</label><input name="title" required></div>
@@ -1377,7 +1481,9 @@ def maintenance():
 
     can_edit = can_manage("maintenance")
     anns = announcements["maintenance"]
-    content = '<div class="card"><h2>📢 Announcements</h2>'
+    open_reports = sum(1 for report in maintenance_reports if report.get("status", "Pending") != "Completed")
+    completed_reports = sum(1 for report in maintenance_reports if report.get("status") == "Completed")
+    content = office_hero("Maintenance Office", "Facility reports, work status, and maintenance announcements.", "⚙️", [("⚙", "Open Reports", open_reports, "clay"), ("✓", "Completed", completed_reports, "sage"), ("📢", "Announcements", len(anns), "gold")]) + '<div class="card"><h2>📢 Announcements</h2>' 
 
     if can_edit:
         content += '''
@@ -1880,4 +1986,8 @@ if __name__ == '__main__':
         print('Install cryptography to enable HTTPS for camera access over a LAN: python -m pip install cryptography')
 
     app.run(debug=True, host='0.0.0.0', port=5000, ssl_context=ssl_mode)
+
+
+
+
 
