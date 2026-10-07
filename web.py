@@ -1354,7 +1354,7 @@ function toggleGradeFields() {
     }
 
     if can_see_all:
-        content += '<div class="card"><h2>📋 All Requests (Admin Only)</h2>'
+        content += '<div class="card"><h2>📋 All Requests (Admin Only)</h2><div class="request-table-scroll" style="overflow-x:auto;-webkit-overflow-scrolling:touch">'
 
         if not grade_requests:
             content += '<p>No requests received.</p>'
@@ -1408,12 +1408,12 @@ function toggleGradeFields() {
 </td>
 </tr>'''
 
-            content += '</table>'
+            content += '</table></div>'
 
         content += '</div>'
 
     else:
-        content += '<div class="card"><h2>📋 My Requests</h2>'
+        content += '<div class="card"><h2>📋 My Requests</h2><div class="request-table-scroll" style="overflow-x:auto;-webkit-overflow-scrolling:touch">'
         if cancelled_msg:
             content += '<p style="color:#b42318;font-weight:bold;">✅ Your request has been cancelled.</p>'
         elif request_error == "cancel_not_allowed":
@@ -1472,7 +1472,7 @@ function toggleGradeFields() {
 <td>{cancel_action}</td>
 </tr>'''
 
-            content += '</table>'
+            content += '</table></div>'
 
         content += '</div>'
 
