@@ -543,6 +543,48 @@ th{{background:linear-gradient(90deg,#087c72,#11c6a6);color:#fff}}
 .scan-status.scan-success{{display:inline-block;padding:8px 10px;border-radius:8px;background:#dcfce7;color:#166534}}
 .scan-status.scan-error{{display:inline-block;padding:8px 10px;border-radius:8px;background:#fee2e2;color:#991b1b}}
 @media(max-width:800px){{.scanner-grid{{grid-template-columns:1fr}}}}
+ @media(max-width:680px){{
+   html,body{{width:100%;min-height:100%;overflow-x:hidden}}
+   body{{display:block;background-attachment:scroll}}
+   .main{{display:block;width:100%;max-width:100%;min-width:0;min-height:100vh;margin:0;padding:8px 12px 20px;overflow:visible}}
+   .dashboard-crumb{{margin-left:54px;min-height:50px;padding-right:4px;line-height:1.4}}
+   .header{{width:100%;min-width:0;align-items:flex-start;gap:8px;margin:0 0 14px}}
+   .header>div:first-child{{min-width:0;flex:1;gap:8px!important}}
+   .header img{{width:36px;height:36px;flex:none}}
+   .header-text{{min-width:0}}
+   .header-text h1{{font-size:18px;line-height:1.2;overflow-wrap:anywhere}}
+   .header-text p{{font-size:11px;line-height:1.35}}
+   .header-user{{display:none}}
+   .card,.office-hero,.dashboard-hero{{width:100%;min-width:0;max-width:100%;overflow-wrap:anywhere}}
+   .card{{padding:15px 13px;border-radius:14px}}
+   .office-hero{{align-items:flex-start;padding:16px 14px;gap:12px}}
+   .office-hero-brand{{width:50px;height:50px}}
+   .office-hero-brand img{{width:46px;height:46px}}
+   .office-hero h2{{font-size:18px;line-height:1.25}}
+   .office-kicker{{font-size:8px;letter-spacing:.7px}}
+   .office-metrics{{grid-template-columns:1fr;gap:9px}}
+   .dashboard-hero{{padding:19px 15px;min-height:0}}
+   .hero-title{{font-size:20px;line-height:1.25;max-width:100%}}
+   .hero-subtitle{{font-size:12px;line-height:1.5}}
+   .hero-link{{position:relative;top:auto;right:auto;display:inline-block;transform:none;margin-top:14px}}
+   .dashboard-stats{{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}}
+   .stat-card{{min-width:0;padding:12px 10px;min-height:96px}}
+   .stat-top{{font-size:10px;gap:7px;align-items:flex-start}}
+   .stat-number{{font-size:22px;margin:8px 0 0 42px;overflow-wrap:anywhere}}
+   .dashboard-columns{{grid-template-columns:minmax(0,1fr);gap:12px}}
+   .dashboard-table, .card>div[style*="overflow-x:auto"]{{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}}
+   .card>table, .dashboard-table table, .card>div[style*="overflow-x:auto"] table{{width:max-content;min-width:100%;}}
+   th,td{{padding:9px 8px;font-size:12px;white-space:normal;overflow-wrap:anywhere}}
+   .form-group input,.form-group textarea,.form-group select,.scanner-grid input,.scanner-grid select{{width:100%;max-width:100%;min-width:0;font-size:16px}}
+   .scanner-panel{{padding:10px}}
+   .scanner-grid{{grid-template-columns:minmax(0,1fr);gap:10px}}
+   .scanner-video{{height:auto;max-height:55vh;aspect-ratio:4/3}}
+   .scanner-actions{{flex-wrap:wrap}}
+   .menu-toggle{{top:10px;left:10px}}
+   .sidebar{{top:0;bottom:0;height:100dvh;width:min(84vw,290px);padding-top:66px}}
+   .menu-backdrop{{inset:0}}
+   .sidebar-brand{{height:62px}}
+ }}
 </style>
 </head>
 <body>
