@@ -1989,7 +1989,7 @@ def registered():
     course_buttons += "</div>"
 
     content = f'<div class="card"><h2>Registered Students</h2>{course_buttons}'
-    content += "<p style='margin-bottom:10px;color:#666;font-size:13px;'>💡 Right-click a row (Admin only) to Edit / Delete</p><table><tr><th>School ID</th><th>Complete Name</th><th>Course</th><th>Major</th><th>Year Level</th><th>Username</th><th>Role</th></tr>"
+    content += "<p style='margin-bottom:10px;color:#666;font-size:13px;'>💡 Right-click a row (Admin only) to Edit / Delete</p><div style='overflow-x:auto;-webkit-overflow-scrolling:touch'><table><tr><th>School ID</th><th>Complete Name</th><th>Course</th><th>Major</th><th>Year Level</th><th>Username</th><th>Role</th></tr>"
 
     has_data = False
 
@@ -2002,7 +2002,7 @@ def registered():
     if not has_data:
         content += "<tr><td colspan='7' style='text-align:center;color:#888;padding:15px;'>No students found.</td></tr>"
 
-    content += "</table></div>"
+    content += "</table></div></div>"
 
     # Vehicle records are visible only to the main admin and Guard Office.
     if role in ["admin", "guard_admin"]:
@@ -2019,7 +2019,7 @@ def registered():
                     "date_time": log.get("date_time", "-")
                 }
 
-        content += '<div class="card"><h2>🚗 Registered Vehicles</h2><p style="color:#666;margin-bottom:15px">List of vehicles recorded by the Guard Office.</p><div style="overflow-x:auto"><table><tr><th>Plate Number</th><th>Student / Driver</th><th>School ID</th><th>Last Recorded</th></tr>'
+        content += '<div class="card"><h2>🚗 Registered Vehicles</h2><p style="color:#666;margin-bottom:15px">List of vehicles recorded by the Guard Office.</p><div style="overflow-x:auto;-webkit-overflow-scrolling:touch"><table><tr><th>Plate Number</th><th>Student / Driver</th><th>School ID</th><th>Last Recorded</th></tr>'
         if not registered_vehicles:
             content += '<tr><td colspan="4" style="text-align:center">No registered or recorded vehicles yet.</td></tr>'
         else:
