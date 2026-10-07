@@ -185,8 +185,8 @@ def can_view_requests():
     return role in ["admin", "registrar_admin"]
 
 
-def add_notification(targets, message, link="/dashboard", office=None):
-    """Send a notification to usernames or role names."""
+def add_notification(targets, message, link="/dashboard", office=None, reference_id=None):
+    """Send notifications once per recipient when a stable reference is supplied."""
     if isinstance(targets, str):
         targets = [targets]
 
@@ -202,22 +202,71 @@ def add_notification(targets, message, link="/dashboard", office=None):
 
     for username in dict.fromkeys(recipients):
         notifications.setdefault(username, [])
+        if reference_id and any(
+            isinstance(item, dict) and item.get("reference_id") == reference_id
+            for item in notifications[username]
+        ):
+            continue
         next_id = max([n.get("id", 0) for n in notifications[username] if isinstance(n, dict)] + [0]) + 1
-        notifications[username].insert(0, {
+        notification = {
             "id": next_id,
             "message": message,
             "link": link,
             "office": office,
             "read": False,
             "date_time": datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
-        })
+        }
+        if reference_id:
+            notification["reference_id"] = reference_id
+        notifications[username].insert(0, notification)
 
     save_data()
 
 
+def backfill_request_notifications():
+    """Create missing office and student notices for requests already on file."""
+    for req in grade_requests:
+        request_id = req.get("id")
+        if request_id is None:
+            continue
+        doc_type = str(req.get("document_type", "document")).upper()
+        student_name = req.get("student_name", "Student")
+        add_notification(
+            ["admin", "registrar_admin"],
+            f"📄 New document request from {student_name} — {doc_type} (Request #{request_id}).",
+            "/registrar", "registrar_admin", f"request-{request_id}-submitted-office"
+        )
+        requested_by = req.get("requested_by")
+        if requested_by in users:
+            add_notification(
+                requested_by,
+                f"✅ Your {doc_type} request (Request #{request_id}) was submitted to the Registrar Office.",
+                "/registrar", "registrar_admin", f"request-{request_id}-submitted-student"
+            )
+
+
+backfill_request_notifications()
+
+
+def deduplicate_legacy_notifications(items):
+    """Hide exact duplicate legacy notifications that have no saved timestamp."""
+    result = []
+    seen_legacy = set()
+    for item in items:
+        if item.get("date_time"):
+            result.append(item)
+            continue
+        key = (item.get("message"), item.get("link"), item.get("office"))
+        if key in seen_legacy:
+            continue
+        seen_legacy.add(key)
+        result.append(item)
+    return result
+
+
 def get_unread_notifications(username):
     return [
-        n for n in notifications.get(username, [])
+        n for n in deduplicate_legacy_notifications(notifications.get(username, []))
         if not n.get("read", False)
     ]
 
@@ -264,7 +313,7 @@ def get_sidebar(active_page):
             "guard": "Guard Office" + office_badge("guard_admin"),
             "maintenance": "Maintenance Office" + office_badge("maintenance_admin"),
             "profile": "Profile",
-            "notifications": "🔔 Notifications" + (f' <span class="badge">{len(unread)}</span>' if unread else "")
+            "notifications": "Notifications" + (f' <span class="badge">{len(unread)}</span>' if unread else "")
         }
     elif role == "registrar_admin":
         pages = {
@@ -272,7 +321,7 @@ def get_sidebar(active_page):
             "registered": "Registered Students",
             "registrar": "Registrar Office" + office_badge("registrar_admin"),
             "profile": "Profile",
-            "notifications": "🔔 Notifications" + (f' <span class="badge">{len(unread)}</span>' if unread else "")
+            "notifications": "Notifications" + (f' <span class="badge">{len(unread)}</span>' if unread else "")
         }
     elif role == "guard_admin":
         pages = {
@@ -280,7 +329,7 @@ def get_sidebar(active_page):
             "registered": "Registered Students",
             "guard": "Guard Office" + office_badge("guard_admin"),
             "profile": "Profile",
-            "notifications": "🔔 Notifications" + (f' <span class="badge">{len(unread)}</span>' if unread else "")
+            "notifications": "Notifications" + (f' <span class="badge">{len(unread)}</span>' if unread else "")
         }
     elif role == "maintenance_admin":
         pages = {
@@ -288,7 +337,7 @@ def get_sidebar(active_page):
             "registered": "Registered Students",
             "maintenance": "Maintenance Office" + office_badge("maintenance_admin"),
             "profile": "Profile",
-            "notifications": "🔔 Notifications" + (f' <span class="badge">{len(unread)}</span>' if unread else "")
+            "notifications": "Notifications" + (f' <span class="badge">{len(unread)}</span>' if unread else "")
         }
     else:
         pages = {
@@ -297,16 +346,17 @@ def get_sidebar(active_page):
             "guard": "Guard Office" + office_badge("guard_admin"),
             "maintenance": "Maintenance Office" + office_badge("maintenance_admin"),
             "profile": "Profile",
-            "notifications": "🔔 Notifications" + (f' <span class="badge">{len(unread)}</span>' if unread else "")
+            "notifications": "Notifications" + (f' <span class="badge">{len(unread)}</span>' if unread else "")
         }
 
     sidebar_html = ""
+    profile_name = pages.pop("profile", "Profile")
     for key, name in pages.items():
         active_class = "active" if active_page == key else ""
         badge = f' <span class="badge">{pending_count}*</span>' if key == "pending" and pending_count > 0 and role == "admin" else ""
         sidebar_html += f'<a href="/{key}"><button class="menu-btn {active_class}">{name}{badge}</button></a>'
 
-    sidebar_html += '<a href="/logout"><button class="menu-btn logout">Log Out</button></a>'
+    sidebar_html += f'<div class="sidebar-footer"><a href="/profile" class="profile-link"><button class="footer-btn profile-btn">{profile_name}</button></a><a href="/logout" class="logout-link"><button class="footer-btn logout-btn">Log Out</button></a></div>'
     return sidebar_html
 
 
@@ -324,6 +374,8 @@ def dashboard_template(content, active_page, page_title):
 :root{{--green:#11c6a6;--deep:#087c72;--ink:#103f42;--muted:#66817f;--line:#d9f0e9;--soft:#e9faf4}}
 body{{min-height:100vh;display:flex;background:linear-gradient(135deg,rgba(0,135,112,.40) 0%,rgba(0,210,170,.34) 100%),url('/bg.jpg') center center / cover fixed;color:var(--ink)}}
 .sidebar{{width:252px;height:auto;min-height:0;flex:none;background:rgba(178,235,216,.93);padding:18px 16px;display:flex;flex-direction:column;gap:8px;position:fixed;top:68px;bottom:0;left:0;z-index:1002;border-right:1px solid #bceadd;overflow-y:auto;transform:translateX(-105%);transition:transform .22s ease}}
+.sidebar{{width:252px;height:auto;min-height:0;flex:none;background:linear-gradient(180deg,#1c527e,#123b60);padding:18px 16px 24px;display:flex;flex-direction:column;gap:8px;position:fixed;top:68px;bottom:0;left:0;z-index:1002;border-right:1px solid #123b60;overflow-y:auto;transform:translateX(-105%);transition:transform .22s ease;color:#fff}}
+.sidebar{{width:252px;height:auto;min-height:0;flex:none;background:rgba(178,235,216,.93);padding:18px 16px;display:flex;flex-direction:column;gap:8px;position:fixed;top:68px;bottom:0;left:0;z-index:1002;border-right:1px solid #bceadd;overflow-y:auto;transform:translateX(-105%);transition:transform .22s ease}}
 .sidebar.is-open{{transform:translateX(0)}}
 .menu-toggle{{position:fixed;top:12px;left:18px;z-index:1004;width:44px;height:44px;border:1px solid #bceadd;border-radius:12px;background:#effff8;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;cursor:pointer;box-shadow:0 3px 12px rgba(9,92,77,.14)}}
 .menu-toggle span{{display:block;width:20px;height:2px;border-radius:2px;background:#087c72;transition:transform .18s,opacity .18s}}
@@ -332,6 +384,16 @@ body{{min-height:100vh;display:flex;background:linear-gradient(135deg,rgba(0,135
 .menu-toggle.is-open span:last-child{{transform:translateY(-7px) rotate(-45deg)}}
 .menu-backdrop{{display:none;position:fixed;inset:68px 0 0;background:rgba(4,69,62,.38);backdrop-filter:blur(2px);z-index:1000}}
 .menu-backdrop.is-open{{display:block}}
+.sidebar-brand{{height:68px;display:flex;align-items:center;gap:12px;padding:0 8px 13px;border-bottom:1px solid var(--line);margin-bottom:12px}}
+.brand-mark{{width:42px;height:42px;display:grid;place-items:center;border-radius:14px;background:#e1fff4;color:var(--deep);font-size:21px}}
+.brand-title{{font-size:15px;font-weight:800;color:#103f42;letter-spacing:.3px}}
+.brand-subtitle{{font-size:9px;color:#557b73;letter-spacing:1.3px;margin-top:3px}}
+.menu-section-label{{font-size:10px;font-weight:800;letter-spacing:1.4px;color:#5d8c7e;padding:9px 12px 4px}}
+.sidebar-brand{{height:82px;display:flex;align-items:center;gap:12px;padding:0 8px 14px;border-bottom:1px solid rgba(255,255,255,.2);margin-bottom:12px}}
+.brand-mark{{width:42px;height:42px;display:grid;place-items:center;border-radius:14px;background:#ffffff20;color:#fff;font-size:21px}}
+.brand-title{{font-size:18px;font-weight:800;color:#fff;letter-spacing:.3px}}
+.brand-subtitle{{font-size:10px;color:#d1e6f5;letter-spacing:.5px;margin-top:3px}}
+.menu-section-label{{font-size:10px;font-weight:800;letter-spacing:1.4px;color:#b9d6e8;padding:9px 12px 4px}}
 .sidebar-brand{{height:68px;display:flex;align-items:center;gap:12px;padding:0 8px 13px;border-bottom:1px solid var(--line);margin-bottom:12px}}
 .brand-mark{{width:42px;height:42px;display:grid;place-items:center;border-radius:14px;background:#e1fff4;color:var(--deep);font-size:21px}}
 .brand-title{{font-size:15px;font-weight:800;color:#103f42;letter-spacing:.3px}}
@@ -352,7 +414,31 @@ body{{min-height:100vh;display:flex;background:linear-gradient(135deg,rgba(0,135
 .sidebar a[href="/pending"] .menu-btn:not(.active){{background:#e3f8ee;color:#245b55}}
 .sidebar a .menu-btn.active{{background:#83edcf;color:#074e4d;box-shadow:inset 3px 0 #087c72}}
 .menu-btn.logout{{color:#176c63;background:#dff8ed!important;margin-top:auto}}
-.main{{flex:1;min-width:0;padding:52px 14px 20px;overflow-y:auto}}
+.sidebar a{{text-decoration:none}}
+.menu-btn{{padding:13px 14px;border:0;border-radius:11px;background:transparent;color:#f4f8fc;font-size:14px;font-weight:700;cursor:pointer;text-align:left;width:100%;display:flex;justify-content:space-between;align-items:center;transition:background .15s,color .15s,transform .15s}}
+.menu-item-label{{display:flex;align-items:center;gap:12px}}
+.menu-icon{{width:24px;text-align:center;font-size:17px}}
+.menu-btn.active{{background:#ffd65a;color:#123f67;font-weight:800;box-shadow:none}}
+.menu-btn:hover{{background:rgba(255,255,255,.12);transform:translateX(2px)}}
+.menu-btn.active:hover{{background:#ffdc6d}}
+.menu-btn .badge{{background:#fff;color:#174b73;border-radius:99px;padding:2px 7px;font-size:10px}}
+.sidebar-footer{{margin-top:auto;padding-top:16px;border-top:1px solid rgba(255,255,255,.2);display:grid;grid-template-columns:1fr 1fr;gap:8px}}
+.menu-btn{{padding:12px 13px;border:0;border-radius:11px;background:#e3f8ee;color:#245b55;font-size:13px;font-weight:500;cursor:pointer;text-align:left;width:100%;display:flex;justify-content:space-between;align-items:center;transition:.15s}}
+.menu-btn.active{{background:#83edcf;color:#074e4d;font-weight:700;box-shadow:inset 3px 0 #087c72}}
+.menu-btn:hover{{filter:saturate(1.15);transform:translateX(2px)}}
+.menu-btn .badge{{background:#fff;color:#087c72;border-radius:99px;padding:2px 7px;font-size:10px}}
+.sidebar-footer{{margin-top:auto;padding-top:16px;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr;gap:8px}}
+.profile-link,.logout-link{{min-width:0}}
+.footer-btn{{width:100%;min-height:46px;border:0;border-radius:11px;padding:8px 6px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}}
+.profile-btn{{background:#fff;color:#174b73}}
+.logout-btn{{background:#ffd04a;color:#143c62}}
+.profile-btn:hover{{background:#edf5fb}}
+.logout-btn:hover{{background:#ffdc6d}}
+.footer-btn{{width:100%;min-height:42px;border:0;border-radius:11px;padding:8px 6px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}}
+.profile-btn{{background:#fff;color:#176c63}}
+.logout-btn{{background:#dff8ed;color:#176c63}}
+.profile-btn:hover,.logout-btn:hover{{filter:saturate(1.15)}}
+.main{{flex:1;min-width:0;padding:8px 14px 20px;overflow-y:auto}}
 .header{{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;color:#f5fffb;text-shadow:0 1px 4px rgba(0,48,43,.72)}}
 .header img{{width:42px;height:42px;object-fit:cover;background:#fff;border-radius:13px;padding:2px;box-shadow:0 2px 10px #193f4012}}
 .header-text h1{{font-size:24px;font-weight:800;color:#ffffff}}
@@ -363,7 +449,7 @@ body{{min-height:100vh;display:flex;background:linear-gradient(135deg,rgba(0,135
 .header-user-role{{font-size:10px;color:#d8fff3;margin-top:2px}}
 .card{{background:rgba(255,255,255,.91);border:1px solid #d9f0e9;border-radius:17px;padding:20px;margin-bottom:16px;box-shadow:0 5px 18px rgba(6,83,75,.09)}}
 .card h2{{font-size:17px;color:#164d4b;margin-bottom:10px;font-weight:700}}
-.dashboard-crumb{{font-size:11px;color:#effff9;text-shadow:0 1px 4px rgba(0,48,43,.8);margin-bottom:9px}}
+.dashboard-crumb{{font-size:11px;color:#effff9;text-shadow:0 1px 4px rgba(0,48,43,.8);margin:0 0 9px 56px;min-height:44px;display:flex;align-items:center}}
 .dashboard-hero{{position:relative;overflow:hidden;background:linear-gradient(115deg,#087d72,#16c6a7);border-radius:20px;padding:27px 32px;color:white;margin-bottom:20px;min-height:144px}}
 .dashboard-hero:after{{content:' ';position:absolute;width:190px;height:190px;border-radius:50%;right:3%;top:-88px;background:#ffffff12;box-shadow:75px 125px 0 18px #ffffff0d}}
 .hero-date{{font-size:10px;letter-spacing:1px;color:#d5fff4}}
@@ -401,12 +487,16 @@ body{{min-height:100vh;display:flex;background:linear-gradient(135deg,rgba(0,135
 .dashboard-notice:nth-of-type(2n){{background:#d5f5ef}}
 .dashboard-notice-title{{font-size:12px;font-weight:700;color:#164d4b;margin-bottom:6px}}
 .dashboard-notice-text{{font-size:11px;line-height:1.5;color:#5c7a78}}
+.notification-date{{display:block;margin-top:6px;color:#66817f;font-size:10px}}
 .dashboard-table{{overflow-x:auto}}
 .dashboard-table th{{background:#d7f5eb;color:#397b70;font-size:10px;letter-spacing:.4px}}
 .dashboard-table th,.dashboard-table td{{padding:10px 9px}}
 .table-status{{display:inline-block;padding:5px 9px;border-radius:20px;background:#c9f3e3;color:#087c72;font-weight:700;font-size:10px}}
 @media(max-width:1050px){{.sidebar{{width:218px}}.dashboard-stats{{grid-template-columns:repeat(2,minmax(0,1fr))}}.dashboard-columns{{grid-template-columns:1fr}}}}
-@media(max-width:680px){{body{{display:block}}.sidebar{{width:min(84vw,290px);height:auto;min-height:0;position:fixed;top:68px;bottom:0;left:0;padding:16px;display:flex;flex-direction:column;flex-wrap:nowrap;border-right:1px solid #eaf0ef;border-bottom:0;transform:translateX(-105%);transition:transform .22s ease}}.sidebar.is-open{{transform:translateX(0)}}.sidebar-brand{{width:100%;height:48px;margin:0;padding-bottom:8px}}.menu-section-label{{display:none}}.sidebar a{{flex:0 0 auto}}.menu-btn{{padding:10px;font-size:11px}}.main{{padding:82px 14px 18px}}.header{{margin-bottom:16px}}.header-text h1{{font-size:19px}}.header-user-role{{display:none}}.dashboard-hero{{padding:22px 19px}}.hero-title{{font-size:21px;max-width:75%}}.hero-link{{position:relative;right:auto;top:auto;transform:none;display:inline-block;margin-top:15px}}.dashboard-stats{{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}}.stat-card{{padding:13px}}.stat-number{{font-size:24px}}}}
+@media(max-width:680px){{body{{display:block}}.sidebar{{width:min(84vw,290px);height:auto;min-height:0;position:fixed;top:68px;bottom:0;left:0;padding:16px;display:flex;flex-direction:column;flex-wrap:nowrap;border-right:1px solid #eaf0ef;border-bottom:0;transform:translateX(-105%);transition:transform .22s ease}}.sidebar.is-open{{transform:translateX(0)}}.sidebar-brand{{width:100%;height:48px;margin:0;padding-bottom:8px}}.menu-section-label{{display:none}}.sidebar a{{flex:0 0 auto}}.menu-btn{{padding:10px;font-size:11px}}.main{{padding:8px 14px 18px}}.header{{margin-bottom:16px}}.header-text h1{{font-size:19px}}.header-user-role{{display:none}}.dashboard-hero{{padding:22px 19px}}.hero-title{{font-size:21px;max-width:75%}}.hero-link{{position:relative;right:auto;top:auto;transform:none;display:inline-block;margin-top:15px}}.dashboard-stats{{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}}.stat-card{{padding:13px}}.stat-number{{font-size:24px}}}}
+@media(max-width:1050px){{.sidebar{{width:252px}}.dashboard-stats{{grid-template-columns:repeat(2,minmax(0,1fr))}}.dashboard-columns{{grid-template-columns:1fr}}}}
+@media(max-width:680px){{body{{display:block}}.sidebar{{width:min(84vw,290px);height:auto;min-height:0;position:fixed;top:68px;bottom:0;left:0;padding:16px;display:flex;flex-direction:column;flex-wrap:nowrap;border-right:1px solid #eaf0ef;border-bottom:0;transform:translateX(-105%);transition:transform .22s ease}}.sidebar.is-open{{transform:translateX(0)}}.sidebar-brand{{width:100%;height:62px;margin:0;padding-bottom:8px}}.menu-section-label{{display:none}}.sidebar-footer{{padding-top:12px}}.footer-btn{{font-size:11px}}.sidebar a{{flex:0 0 auto}}.menu-btn{{padding:10px;font-size:11px}}.main{{padding:8px 14px 18px}}.header{{margin-bottom:16px}}.header-text h1{{font-size:19px}}.header-user-role{{display:none}}.dashboard-hero{{padding:22px 19px}}.hero-title{{font-size:21px;max-width:75%}}.hero-link{{position:relative;right:auto;top:auto;transform:none;display:inline-block;margin-top:15px}}.dashboard-stats{{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}}.stat-card{{padding:13px}}.stat-number{{font-size:24px}}}}
+@media(max-width:680px){{body{{display:block}}.sidebar{{width:min(84vw,290px);height:auto;min-height:0;position:fixed;top:68px;bottom:0;left:0;padding:16px;display:flex;flex-direction:column;flex-wrap:nowrap;border-right:1px solid #eaf0ef;border-bottom:0;transform:translateX(-105%);transition:transform .22s ease}}.sidebar.is-open{{transform:translateX(0)}}.sidebar-brand{{width:100%;height:48px;margin:0;padding-bottom:8px}}.menu-section-label{{display:none}}.sidebar-footer{{padding-top:12px}}.footer-btn{{font-size:11px}}.sidebar a{{flex:0 0 auto}}.menu-btn{{padding:10px;font-size:11px}}.main{{padding:8px 14px 18px}}.header{{margin-bottom:16px}}.header-text h1{{font-size:19px}}.header-user-role{{display:none}}.dashboard-hero{{padding:22px 19px}}.hero-title{{font-size:21px;max-width:75%}}.hero-link{{position:relative;right:auto;top:auto;transform:none;display:inline-block;margin-top:15px}}.dashboard-stats{{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}}.stat-card{{padding:13px}}.stat-number{{font-size:24px}}}}
 .card h2{{font-size:18px;color:#164d4b;margin-bottom:15px;font-weight:700}}
 .logout{{background:#dff8ed!important;color:#176c63!important;margin-top:20px}}
 a{{text-decoration:none}}
@@ -447,6 +537,11 @@ th{{background:linear-gradient(90deg,#087c72,#11c6a6);color:#fff}}
 .scanner-video{{width:100%;height:260px;background:#111;border-radius:12px;object-fit:cover}}
 .scanner-actions{{display:flex;gap:8px;margin:8px 0}}
 .scan-status{{font-size:13px;color:#666;margin-top:8px}}
+.scan-feedback{{padding:12px 16px;border-radius:12px;margin:10px 0;font-weight:700}}
+.scan-success{{background:#dcfce7;border-left:5px solid #16a34a!important;color:#166534}}
+.scan-error{{background:#fee2e2;border-left:5px solid #dc2626!important;color:#991b1b}}
+.scan-status.scan-success{{display:inline-block;padding:8px 10px;border-radius:8px;background:#dcfce7;color:#166534}}
+.scan-status.scan-error{{display:inline-block;padding:8px 10px;border-radius:8px;background:#fee2e2;color:#991b1b}}
 @media(max-width:800px){{.scanner-grid{{grid-template-columns:1fr}}}}
 </style>
 </head>
@@ -520,7 +615,7 @@ document.getElementById('menuEdit').onclick = function(e) {{
 }};
 document.getElementById('menuDelete').onclick = function(e) {{
   e.preventDefault();
-  if(selectedUser && confirm('Burahin ba talaga ang akawnt na ito?')) {{
+  if(selectedUser && confirm('Are you sure you want to delete this account?')) {{
     window.location.href = '/delete/' + selectedUser;
   }}
 }};
@@ -660,7 +755,7 @@ body::before{{content:'';position:absolute;top:0;left:0;width:100%;height:100%;b
 <h2 class="campus-name">SLSU-JGE SIGN UP</h2>
 <p class="error">Username already exists!</p>
 <form action="/signup" method="POST">
-<div class="input-box"><input type="text" name="complete_name" placeholder="Complete Name" required></div>
+<div class="input-box"><input type="text" name="complete_name" placeholder="Ex. Dela Cruz, Juan T." required></div>
 <div class="input-box"><input type="text" name="school_id" placeholder="School ID" required></div>
 <div class="input-box">
 <select name="course" required>
@@ -713,7 +808,7 @@ courseSelect.addEventListener('change', () => {{
             save_data()
             add_notification(
                 "admin",
-                f"📥 Bagong account approval request mula kay {complete_name} ({username}).",
+                f"📥 New account approval request from {complete_name} ({username}).",
                 "/pending"
             )
             return render_login(success_msg="Account submitted! Wait for admin approval.")
@@ -748,7 +843,7 @@ body::before{{content:'';position:absolute;top:0;left:0;width:100%;height:100%;b
 <div class="logo-circle"><img src="/logo.png" alt="SLSU Logo"></div>
 <h2 class="campus-name">SLSU-JGE SIGN UP</h2>
 <form action="/signup" method="POST">
-<div class="input-box"><input type="text" name="complete_name" placeholder="Complete Name" required></div>
+<div class="input-box"><input type="text" name="complete_name" placeholder="Ex. Dela Cruz, Juan T." required></div>
 <div class="input-box"><input type="text" name="school_id" placeholder="School ID" required></div>
 <div class="input-box">
 <select name="course" required>
@@ -834,7 +929,7 @@ def add_announcement(office):
         if student_usernames:
             add_notification(
                 student_usernames,
-                f"📢 Bagong announcement mula sa {office_name}: {title}",
+                f"📢 New announcement from {office_name}: {title}",
                 f"/{office}",
                 office_role
             )
@@ -927,7 +1022,8 @@ def submit_request():
         "document_type": doc_type,
         "purpose": purpose,
         "status": "Pending",
-        "requested_by": uname
+        "requested_by": uname,
+        "requested_at": datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
     }
 
     if doc_type == "grades":
@@ -947,8 +1043,13 @@ def submit_request():
 
     add_notification(
         ["admin", "registrar_admin"],
-        f"📄 Bagong document request mula kay {user_data.get('complete_name')} — {doc_type.upper()}.",
-        "/registrar"
+        f"📄 New document request from {user_data.get('complete_name')} — {doc_type.upper()} (Request #{new_request['id']}).",
+        "/registrar", "registrar_admin", f"request-{new_request['id']}-submitted-office"
+    )
+    add_notification(
+        uname,
+        f"✅ Your {doc_type.upper()} request (Request #{new_request['id']}) was submitted to the Registrar Office.",
+        "/registrar", "registrar_admin", f"request-{new_request['id']}-submitted-student"
     )
 
     return redirect('/registrar?success=1')
@@ -966,6 +1067,9 @@ def update_request(req_id, status):
         if req["id"] == req_id:
             if req.get("status", "Pending") == "Cancelled":
                 return redirect('/registrar')
+            previous_status = req.get("status", "Pending")
+            if previous_status == status:
+                break
             req["status"] = status
             save_data()
 
@@ -973,9 +1077,10 @@ def update_request(req_id, status):
             if requested_by in users:
                 add_notification(
                     requested_by,
-                    f"📋 Update sa document request mo: {req.get('document_type', '').upper()} → {status}.",
+                    f"Request #{req_id}: {req.get('document_type', '').upper()} status updated to {status}.",
                     "/registrar",
-                    "registrar_admin"
+                    "registrar_admin",
+                    f"request-{req_id}-status-{status}"
                 )
             break
 
@@ -1057,7 +1162,7 @@ def registrar():
             major_field_html = f'<input type="text" value="{html_escape(saved_major, quote=True)}" readonly style="background:#e7f8f0;color:#17675e;font-weight:600">'
         else:
             major_option_html = ''.join(f'<option value="{html_escape(option, quote=True)}">{html_escape(option)}</option>' for option in major_options)
-            major_field_html = f'<select name="major" required style="background:#e7f8f0;color:#17675e"><option value="">-- Piliin ang Major --</option>{major_option_html}</select>'
+            major_field_html = f'<select name="major" required style="background:#e7f8f0;color:#17675e"><option value="">-- Select Major --</option>{major_option_html}</select>'
         major_group_html = f'<div class="form-group"><label>Major:</label>{major_field_html}</div>'
     content = office_hero("Registrar Office", "Document services, student requests, and registrar announcements.", "📄", [("▤", "Document Requests", len(grade_requests), "sage"), ("◷", "Office Announcements", len(anns), "gold"), ("✓", "Accepted Formats", "PDF · JPG · PNG", "")]) + '<div class="card"><h2>📢 Announcements</h2>' 
 
@@ -1088,7 +1193,7 @@ def registrar():
 <input name="content" value="{a['content']}" style="width:200px;padding:4px">
 <button type="submit" class="edit-btn">✏️ Save</button>
 </form>
-<a href="/registrar/delete/{a['id']}" class="delete-btn" onclick="return confirm('Burahin ba?')">🗑️ Delete</a>
+<a href="/registrar/delete/{a['id']}" class="delete-btn" onclick="return confirm('Are you sure you want to delete this?')">🗑️ Delete</a>
 </div>
 '''
             content += '</div>'
@@ -1100,18 +1205,18 @@ def registrar():
     if success_msg:
         content += '<p style="color:green;font-weight:bold;">✅ Request submitted successfully!</p>'
     elif request_error == "missing_cor":
-        content += '<p style="color:#d32f2f;font-weight:bold;">⚠️ Para sa CTC, kailangan mag-upload ng COR.</p>'
+        content += '<p style="color:#d32f2f;font-weight:bold;">⚠️ A COR upload is required for CTC.</p>'
     elif request_error == "invalid_cor":
         content += '<p style="color:#d32f2f;font-weight:bold;">⚠️ Invalid file. COR must be PDF, JPG, JPEG, or PNG.</p>'
     elif request_error == "missing_major":
-        content += '<p style="color:#d32f2f;font-weight:bold;">⚠️ Piliin muna ang major. Isi-save ito sa profile mo para awtomatiko na sa susunod na request.</p>'
+        content += '<p style="color:#d32f2f;font-weight:bold;">⚠️ Please select your major. It will be saved to your profile for future requests.</p>'
 
     content += '''
 <form method="POST" action="/submit-request" class="form-group" id="requestForm" enctype="multipart/form-data">
 <div class="form-group">
 <label>Select Document:</label>
 <select name="document_type" id="docType" required onchange="toggleGradeFields()">
-<option value="">-- Pumili ng Dokumento --</option>
+<option value="">-- Select Document --</option>
 <option value="grades">📊 Copy of Grades</option>
 <option value="tor">📑 Transcript of Records (TOR)</option>
 <option value="ctc">📋 Certified True Copy (CTC)</option>
@@ -1127,7 +1232,7 @@ __REQUEST_MAJOR_GROUP__
 <div class="form-group">
 <label>Year Level:</label>
 <select name="grade_year" id="grade_year">
-<option value="">-- Pumili ng Taon --</option>
+<option value="">-- Select Year Level --</option>
 <option value="1st Year">1st Year</option>
 <option value="2nd Year">2nd Year</option>
 <option value="3rd Year">3rd Year</option>
@@ -1137,10 +1242,10 @@ __REQUEST_MAJOR_GROUP__
 <div class="form-group">
 <label>Semester:</label>
 <select name="grade_sem" id="grade_sem">
-<option value="">-- Pumili ng Semestre --</option>
+<option value="">-- Select Semester --</option>
 <option value="1st Sem">1st Semester</option>
 <option value="2nd Sem">2nd Semester</option>
-<option value="Summer">Summer</option>
+
 </select>
 </div>
 </div>
@@ -1154,8 +1259,8 @@ __REQUEST_MAJOR_GROUP__
 </div>
 
 <div class="form-group">
-<label>Purpose / Para saan:</label>
-<textarea name="purpose" id="purposeField" rows="3" placeholder="Isulat kung para saan ang dokumento..." required></textarea>
+<label>Purpose:</label>
+<textarea name="purpose" id="purposeField" rows="3" placeholder="Enter the purpose of this document request..." required></textarea>
 </div>
 <button type="submit" class="submit-btn">📤 Submit Request</button>
 </form>
@@ -1210,11 +1315,12 @@ function toggleGradeFields() {
         content += '<div class="card"><h2>📋 All Requests (Admin Only)</h2>'
 
         if not grade_requests:
-            content += '<p>Walang request na natanggap.</p>'
+            content += '<p>No requests received.</p>'
         else:
             content += '''<table>
 <tr>
 <th>Student Name</th>
+<th>Request Date &amp; Time</th>
 <th>School ID</th>
 <th>Department / Course</th>
 <th>Major</th>
@@ -1244,6 +1350,7 @@ function toggleGradeFields() {
 
                 content += f'''<tr>
 <td>{req["student_name"]}</td>
+<td>{req.get("requested_at", "-")}</td>
 <td>{req["school_id"]}</td>
 <td>{req.get("department", req.get("course", "-"))}</td>
 <td>{req.get("major", "-") or "-"}</td>
@@ -1255,7 +1362,7 @@ function toggleGradeFields() {
 <a href="/update-request/{req['id']}/Processing" class="edit-btn">Processing</a>
 <a href="/update-request/{req['id']}/Ready" class="approve-btn">Ready</a>
 <a href="/update-request/{req['id']}/Completed" class="submit-btn">Done</a>
-<a href="/delete-request/{req['id']}" class="delete-btn" onclick="return confirm('Burahin ba?')">🗑️</a>
+<a href="/delete-request/{req['id']}" class="delete-btn" onclick="return confirm('Are you sure you want to delete this?')">🗑️</a>
 </td>
 </tr>'''
 
@@ -1266,19 +1373,20 @@ function toggleGradeFields() {
     else:
         content += '<div class="card"><h2>📋 My Requests</h2>'
         if cancelled_msg:
-            content += '<p style="color:#b42318;font-weight:bold;">✅ Nakansela na ang request mo.</p>'
+            content += '<p style="color:#b42318;font-weight:bold;">✅ Your request has been cancelled.</p>'
         elif request_error == "cancel_not_allowed":
-            content += '<p style="color:#d32f2f;font-weight:bold;">Hindi na puwedeng i-cancel dahil naproseso na ang request.</p>'
+            content += '<p style="color:#d32f2f;font-weight:bold;">This request can no longer be cancelled because it has been processed.</p>'
 
         my_reqs = [r for r in grade_requests if r["requested_by"] == uname]
 
         if not my_reqs:
-            content += '<p>Wala ka pang request.</p>'
+            content += '<p>You have no requests yet.</p>'
         else:
             major_header = '<th>Major</th>' if major_options else ''
             content += f'''<table>
 <tr>
 <th>Document</th>
+<th>Request Date &amp; Time</th>
 <th>Department / Course</th>
 {major_header}
 <th>Details</th>
@@ -1313,6 +1421,7 @@ function toggleGradeFields() {
 
                 content += f'''<tr>
 <td>{doc_label}</td>
+<td>{req.get("requested_at", "-")}</td>
 <td>{req.get("department", req.get("course", "-"))}</td>
 {major_cell}
 <td>{details}</td>
@@ -1340,9 +1449,8 @@ def guard_log():
     vehicle_plate = request.form.get('vehicle_plate', '').strip().upper()
     visitor_name = request.form.get('visitor_name', '').strip()
     purpose = request.form.get('purpose', '').strip()
-    direction = request.form.get('direction', 'IN').strip().upper()
-    if direction not in ['IN', 'OUT']:
-        direction = 'IN'
+    # Guard Office records entries only; clients cannot submit OUT events.
+    direction = 'IN'
     student_name = course = year_level = ''
     matched_student = None
 
@@ -1455,55 +1563,56 @@ def guard():
         for a in anns:
             content += f'''<div class="announce"><h4>{a['title']}</h4><p>{a['content']}</p><small>Posted by: {a['author']}</small>'''
             if can_edit:
-                content += f'''<div class="ann-actions"><form method="POST" action="/guard/edit/{a['id']}" style="display:inline">
+                content += f"""<div class="ann-actions"><form method="POST" action="/guard/edit/{a['id']}" style="display:inline">
 <input name="title" value="{a['title']}" style="width:150px;padding:4px"><input name="content" value="{a['content']}" style="width:200px;padding:4px">
-<button type="submit" class="edit-btn">✏️ Save</button></form><a href="/guard/delete/{a['id']}" class="delete-btn" onclick="return confirm('Burahin ba?')">🗑️ Delete</a></div>'''
+<button type="submit" class="edit-btn">✏️ Save</button></form><a href="/guard/delete/{a['id']}" class="delete-btn" onclick="return confirm('Are you sure you want to delete this?')">🗑️ Delete</a></div>"""
             content += '</div>'
     content += '</div>'
 
     if can_edit:
         if duty_saved:
-            content += '<div class="card" style="color:#087443;font-weight:700">✅ Na-save ang naka-duty na guard.</div>'
+            content += '<div class="card" style="color:#087443;font-weight:700">✅ Guard on duty saved.</div>'
         content += f'''<div class="card"><h2>👮 Guard on Duty</h2>
 <form method="POST" action="/guard/duty" class="form-group">
-<label>Pangalan ng guard na naka-duty:</label>
-<input type="text" name="guard_on_duty" value="{html_escape(guard_on_duty, quote=True)}" maxlength="100" placeholder="Ilagay ang pangalan ng guard" required>
-<button type="submit" class="submit-btn">💾 I-save ang Naka-duty</button>
+<label>Guard on duty:</label>
+<input type="text" name="guard_on_duty" value="{html_escape(guard_on_duty, quote=True)}" maxlength="100" placeholder="Enter the guard name" required>
+<button type="submit" class="submit-btn">💾 Save Guard on Duty</button>
 </form></div>'''
-        if success: content += '<div class="card" style="border-left:5px solid #00a67e;color:#087443;font-weight:700">✅ Guard log successfully recorded.</div>'
-        if error == 'missing_id': content += '<div class="card" style="color:#d32f2f;font-weight:700">⚠️ Kailangan ang School ID.</div>'
-        elif error == 'unregistered_id': content += '<div class="card" style="color:#d32f2f;font-weight:700">❌ Hindi tugma ang pangalan at School ID sa registered student.</div>'
-        elif error == 'missing_vehicle': content += '<div class="card" style="color:#d32f2f;font-weight:700">⚠️ Kailangan ang vehicle plate/scan value.</div>'
-        elif error == 'unregistered_driver': content += '<div class="card" style="color:#d32f2f;font-weight:700">❌ Hindi registered/approved ang School ID ng driver.</div>'
-        elif error == 'missing_manual': content += '<div class="card" style="color:#d32f2f;font-weight:700">⚠️ Maglagay ng kahit pangalan, School ID, o vehicle plate.</div>'
-        elif error == 'missing_guard': content += '<div class="card" style="color:#d32f2f;font-weight:700">⚠️ Ilagay muna ang pangalan ng guard na naka-duty.</div>'
-        content += '''<div class="card"><h2>🛡️ Guard Entry & Exit Scanner</h2>
-<p style="color:#666;margin-bottom:15px">I-scan ang student ID o vehicle QR/barcode. Maaari ring maglagay ng detalye nang mano-mano.</p>
+        if success: content += '<div class="card scan-feedback scan-success">✅ Guard log successfully recorded. Entry verified.</div>'
+        if error == 'missing_id': content += '<div class="card scan-feedback scan-error">⚠️ Kailangan ang School ID.</div>'
+        elif error == 'unregistered_id': content += '<div class="card scan-feedback scan-error">❌ The name and School ID do not match a registered student.</div>'
+        elif error == 'missing_vehicle': content += '<div class="card scan-feedback scan-error">⚠️ Kailangan ang vehicle plate/scan value.</div>'
+        elif error == 'unregistered_driver': content += '<div class="card scan-feedback scan-error">❌ The driver School ID is not registered or approved.</div>'
+        elif error == 'missing_manual': content += '<div class="card scan-feedback scan-error">⚠️ Enter a name, School ID, or vehicle plate.</div>'
+        elif error == 'missing_guard': content += '<div class="card scan-feedback scan-error">⚠️ Enter the name of the guard on duty first.</div>'
+        content += '''<div class="card"><h2>🛡️ Guard Entry Scanner</h2>
+<p style="color:#666;margin-bottom:15px">Scan the student ID or vehicle QR code/barcode. You can also enter the details manually.</p>
 <div class="scanner-tabs"><button type="button" class="scan-tab active" onclick="showScanner('idScanner', this)">🪪 ID Scanner</button>
 <button type="button" class="scan-tab" onclick="showScanner('vehicleScanner', this)">🚗 Vehicle Scanner</button>
 <button type="button" class="scan-tab" onclick="showScanner('manualScanner', this)">⌨️ Manual Input</button></div>
 <div id="idScanner" class="scanner-panel"><form method="POST" action="/guard/log" onsubmit="return prepareIdSubmit()"><input type="hidden" name="scan_type" value="id"><div class="scanner-grid"><div>
 <label>Camera ID/QR Scanner</label><div id="idQrReader" class="scanner-video"></div><div class="scanner-actions">
 <button type="button" class="edit-btn" onclick="startScanner('id')">📷 Start Scanner</button><button type="button" class="delete-btn" onclick="stopScanner('id')">⏹ Stop</button></div></div><div>
-<label>Scanned School ID</label><input id="idValue" name="school_id" placeholder="I-scan o ilagay ang School ID"><p id="idScanStatus" class="scan-status">Ready to scan ID.</p>
-<label>Direction</label><select name="direction"><option value="IN">🟢 IN / Entry</option><option value="OUT">🔴 OUT / Exit</option></select>
-<label>Purpose</label><input name="purpose" placeholder="Hal. Class / Visitor / Official business"><button type="submit" class="submit-btn">✅ Record ID Entry</button></div></div></form></div>
+<label>Scanned School ID</label><input id="idValue" name="school_id" placeholder="Scan or enter the School ID"><p id="idScanStatus" class="scan-status">Ready to scan ID.</p>
+<label>Direction</label><select name="direction"><option value="IN" selected>IN</option></select>
+
+<label>Purpose</label><input name="purpose" placeholder="e.g. Class / Visitor / Official business"><button type="submit" class="submit-btn">✅ Record ID Entry</button></div></div></form></div>
 <div id="vehicleScanner" class="scanner-panel" style="display:none"><form method="POST" action="/guard/log" onsubmit="return prepareVehicleSubmit()"><input type="hidden" name="scan_type" value="vehicle"><div class="scanner-grid"><div>
 <label>Camera Vehicle QR/Barcode Scanner</label><div id="vehicleQrReader" class="scanner-video"></div><div class="scanner-actions">
 <button type="button" class="edit-btn" onclick="startScanner('vehicle')">📷 Start Scanner</button><button type="button" class="delete-btn" onclick="stopScanner('vehicle')">⏹ Stop</button></div>
-<p id="vehicleScanStatus" class="scan-status">Itapat ang QR/barcode sa camera.</p></div><div>
+<p id="vehicleScanStatus" class="scan-status">Point the QR code or barcode at the camera.</p></div><div>
 <label>Vehicle Plate / Scan Value</label><input id="vehicleValue" name="vehicle_plate" placeholder="Hal. ABC-1234"><label>School ID ng Driver (optional)</label><input name="school_id" placeholder="Kung registered student">
-<label>Direction</label><select name="direction"><option value="IN">🟢 IN / Entry</option><option value="OUT">🔴 OUT / Exit</option></select><label>Purpose</label><input name="purpose" placeholder="Hal. Student / Faculty / Delivery / Visitor"><button type="submit" class="submit-btn">🚗 Record Vehicle Entry</button></div></div></form></div>
+<label>Direction</label><select name="direction"><option value="IN" selected>IN</option></select><label>Purpose</label><input name="purpose" placeholder="e.g. Student / Faculty / Delivery / Visitor"><button type="submit" class="submit-btn">🚗 Record Vehicle Entry</button></div></div></form></div>
 <div id="manualScanner" class="scanner-panel" style="display:none"><form method="POST" action="/guard/log"><input type="hidden" name="scan_type" value="manual"><div class="scanner-grid"><div>
 <label>Visitor / Student Name</label><input name="visitor_name" placeholder="Complete name"><label>School ID (optional)</label><input name="school_id" placeholder="School ID"><label>Vehicle Plate (optional)</label><input name="vehicle_plate" placeholder="Vehicle plate"></div><div>
-<label>Direction</label><select name="direction"><option value="IN">🟢 IN / Entry</option><option value="OUT">🔴 OUT / Exit</option></select><label>Purpose</label><input name="purpose" placeholder="Reason for entry/exit"><button type="submit" class="submit-btn">📝 Save Manual Entry</button></div></div></form></div></div>'''
+<label>Direction</label><select name="direction"><option value="IN" selected>IN</option></select><label>Purpose</label><input name="purpose" placeholder="Reason for entry"><button type="submit" class="submit-btn">📝 Save Manual Entry</button></div></div></form></div></div>'''
         content += '''<div class="card"><h2>📋 Guard Access Logs</h2><div style="overflow-x:auto"><table><tr><th>Date & Time</th><th>Method</th><th>Name</th><th>School ID</th><th>Vehicle</th><th>Direction</th><th>Purpose</th><th>Guard</th><th>Action</th></tr>'''
         if not guard_logs:
-            content += '<tr><td colspan="9" style="text-align:center">Wala pang guard logs.</td></tr>'
+            content += '<tr><td colspan="9" style="text-align:center">No guard logs yet.</td></tr>'
         else:
             method_labels = {'id':'🪪 ID Scan','vehicle':'🚗 Vehicle Scan','manual':'⌨️ Manual'}
             for log in guard_logs[:200]:
-                content += f'''<tr><td>{log.get('date_time','-')}</td><td>{method_labels.get(log.get('scan_type'), log.get('scan_type','-'))}</td><td>{log.get('student_name','-') or '-'}</td><td>{log.get('school_id','-') or '-'}</td><td>{log.get('vehicle_plate','-') or '-'}</td><td><b>{log.get('direction','-')}</b></td><td>{log.get('purpose','-') or '-'}</td><td>{log.get('guard','-')}</td><td><a href="/guard/delete-log/{log.get('id')}" class="delete-btn" onclick="return confirm('Burahin ang log na ito?')">🗑️</a></td></tr>'''
+                content += f'''<tr><td>{log.get('date_time','-')}</td><td>{method_labels.get(log.get('scan_type'), log.get('scan_type','-'))}</td><td>{log.get('student_name','-') or '-'}</td><td>{log.get('school_id','-') or '-'}</td><td>{log.get('vehicle_plate','-') or '-'}</td><td><b>{log.get('direction','-')}</b></td><td>{log.get('purpose','-') or '-'}</td><td>{log.get('guard','-')}</td><td><a href="/guard/delete-log/{log.get('id')}" class="delete-btn" onclick="return confirm('Are you sure you want to delete this log?')">🗑️</a></td></tr>'''
 
         content += '''<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
@@ -1514,9 +1623,13 @@ function showScanner(id,btn){
   document.querySelectorAll('.scan-tab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
 }
-function setScanStatus(type,message){
+function setScanStatus(type,message,state='info'){
   const el=document.getElementById(type==='id'?'idScanStatus':'vehicleScanStatus');
-  if(el) el.textContent=message;
+  if(!el) return;
+  el.textContent=message;
+  el.classList.remove('scan-success','scan-error');
+  if(state==='success') el.classList.add('scan-success');
+  if(state==='error') el.classList.add('scan-error');
 }
 async function startScanner(type){
   const readerId=type==='id'?'idQrReader':'vehicleQrReader';
@@ -1524,10 +1637,10 @@ async function startScanner(type){
   try{
     await stopScanner(type);
     if(typeof Html5Qrcode==='undefined'){
-      setScanStatus(type,'⚠️ Hindi na-load ang scanner library. Tingnan ang internet at i-refresh.'); return;
+      setScanStatus(type,'⚠️ The scanner library could not load. Check your internet connection and refresh.','error'); return;
     }
     if(!window.isSecureContext && location.hostname!=='localhost' && location.hostname!=='127.0.0.1'){
-      setScanStatus(type,'⚠️ Kailangan ng HTTPS para magamit ang camera sa network address.'); return;
+      setScanStatus(type,'⚠️ HTTPS is required to use the camera on a network address.','error'); return;
     }
     setScanStatus(type,'📷 Humihingi ng pahintulot sa camera...');
     const scanner=new Html5Qrcode(readerId);
@@ -1543,19 +1656,19 @@ async function startScanner(type){
       setScanStatus(type,'✅ Na-scan: '+value);
       await stopScanner(type);
       if(type==='id'){
-        setScanStatus(type,'⏳ Vine-verify ang pangalan at School ID...');
+        setScanStatus(type,'⏳ Verifying name and School ID...');
         document.querySelector('#idScanner form').requestSubmit();
       }
     },()=>{});
-    setScanStatus(type,'📷 Aktibo ang scanner. Itapat ang QR/barcode sa kahon.');
+    setScanStatus(type,'✅ Camera ready. Scan the student QR code or ID.','success');
   }catch(err){
     await stopScanner(type);
-    let message='⚠️ Hindi ma-access ang camera.';
-    if(err&&err.name==='NotAllowedError') message='⚠️ Hindi pinayagan ang camera. Payagan ito sa browser settings.';
-    else if(err&&err.name==='NotFoundError') message='⚠️ Walang camera na nakita sa device.';
+    let message='⚠️ The camera cannot be accessed.';
+    if(err&&err.name==='NotAllowedError') message='⚠️ Camera access was denied. Allow it in your browser settings.';
+    else if(err&&err.name==='NotFoundError') message='⚠️ No camera was found on this device.';
     else if(err&&err.name==='NotReadableError') message='⚠️ Ginagamit ng ibang app ang camera. Isara muna ito.';
     else if(err) message='⚠️ Scanner error: '+(err.message||err);
-    setScanStatus(type,message);
+    setScanStatus(type,message,'error');
   }
 }
 async function stopScanner(type){
@@ -1564,12 +1677,13 @@ async function stopScanner(type){
 }
 function prepareIdSubmit(){
   const value=document.getElementById('idValue').value.trim();
-  if(!value){alert('I-scan muna ang Student ID o ilagay ang School ID.');return false;} return true;
+  if(!value){alert('Scan the Student ID or enter the School ID first.');return false;} return true;
 }
 function prepareVehicleSubmit(){
   const value=document.getElementById('vehicleValue').value.trim();
-  if(!value){alert('I-scan muna ang vehicle QR/barcode o ilagay ang plate number.');return false;} return true;
+  if(!value){alert('Scan the vehicle QR code/barcode or enter the plate number first.');return false;} return true;
 }
+window.addEventListener('load',()=>{ if(document.getElementById('idQrReader')) startScanner('id'); });
 window.addEventListener('beforeunload',()=>{stopScanner('id');stopScanner('vehicle');});
 </script>'''
     return dashboard_template(content, "guard", "Guard Office")
@@ -1615,7 +1729,7 @@ def maintenance():
 
         add_notification(
             ["admin", "maintenance_admin"],
-            f"🔧 Bagong maintenance report: {request.form.get('description', '').strip()} — {request.form.get('location', '').strip()}",
+            f"🔧 New maintenance report: {request.form.get('description', '').strip()} — {request.form.get('location', '').strip()}",
             "/maintenance",
             "maintenance_admin"
         )
@@ -1655,7 +1769,7 @@ def maintenance():
 <input name="content" value="{a['content']}" style="width:200px;padding:4px">
 <button type="submit" class="edit-btn">✏️ Save</button>
 </form>
-<a href="/maintenance/delete/{a['id']}" class="delete-btn" onclick="return confirm('Burahin ba?')">🗑️ Delete</a>
+<a href="/maintenance/delete/{a['id']}" class="delete-btn" onclick="return confirm('Are you sure you want to delete this?')">🗑️ Delete</a>
 </div>
 '''
             content += '</div>'
@@ -1674,14 +1788,14 @@ def maintenance():
 
     image_error = request.args.get("error")
     if image_error == "invalid_image":
-        content = '<div class="card" style="color:#b42318">Hindi suportado ang larawan. PNG o JPG lang ang puwede.</div>' + content
+        content = '<div class="card" style="color:#b42318">Unsupported image. Only PNG or JPG files are allowed.</div>' + content
     elif image_error == "image_too_large":
-        content = '<div class="card" style="color:#b42318">Sobra sa 5 MB ang larawan. Pumili ng mas maliit na file.</div>' + content
+        content = '<div class="card" style="color:#b42318">The image exceeds 5 MB. Choose a smaller file.</div>' + content
 
     content += '<div class="card"><h2>Submitted Reports</h2>'
 
     if not maintenance_reports:
-        content += "<p>Walang nai-report.</p>"
+        content += "<p>No reports submitted.</p>"
     else:
         for report in reversed(maintenance_reports):
             report_id = report.get("id", 0)
@@ -1698,7 +1812,7 @@ def maintenance():
 <div style="margin-top:10px">
 <a href="/update-maintenance/{report_id}/Processing" class="edit-btn">⚙️ Processing</a>
 <a href="/update-maintenance/{report_id}/Completed" class="submit-btn" style="text-decoration:none;display:inline-block;padding:6px 10px;font-size:12px">✅ Done</a>
-<a href="/delete-maintenance/{report_id}" class="delete-btn" onclick="return confirm('Burahin ang maintenance report na ito?')">🗑️ Delete</a>
+<a href="/delete-maintenance/{report_id}" class="delete-btn" onclick="return confirm('Are you sure you want to delete this maintenance report?')">🗑️ Delete</a>
 </div>"""
 
             image_html = ""
@@ -1825,7 +1939,7 @@ def registered():
     selected_course = request.args.get('course', 'all')
 
     course_buttons = '<div style="margin-bottom:20px;display:flex;flex-wrap:wrap;gap:8px;">'
-    course_buttons += f'<a href="/registered?course=all"><button style="padding:8px 16px;border:none;border-radius:8px;background:{"#00d4aa" if selected_course=="all" else "#eee"};color:{"#fff" if selected_course=="all" else "#333"};cursor:pointer;font-weight:bold;">Lahat</button></a>'
+    course_buttons += f'<a href="/registered?course=all"><button style="padding:8px 16px;border:none;border-radius:8px;background:{"#00d4aa" if selected_course=="all" else "#eee"};color:{"#fff" if selected_course=="all" else "#333"};cursor:pointer;font-weight:bold;">All</button></a>'
 
     for c in COURSES:
         course_buttons += f'<a href="/registered?course={c}"><button style="padding:8px 16px;border:none;border-radius:8px;background:{"#00d4aa" if selected_course==c else "#eee"};color:{"#fff" if selected_course==c else "#333"};cursor:pointer;font-weight:bold;">{c}</button></a>'
@@ -1833,7 +1947,7 @@ def registered():
     course_buttons += "</div>"
 
     content = f'<div class="card"><h2>Registered Students</h2>{course_buttons}'
-    content += "<p style='margin-bottom:10px;color:#666;font-size:13px;'>💡 Right-click row (Admin lang) para sa Edit / Delete</p><table><tr><th>School ID</th><th>Complete Name</th><th>Course</th><th>Major</th><th>Year Level</th><th>Username</th><th>Role</th></tr>"
+    content += "<p style='margin-bottom:10px;color:#666;font-size:13px;'>💡 Right-click a row (Admin only) to Edit / Delete</p><table><tr><th>School ID</th><th>Complete Name</th><th>Course</th><th>Major</th><th>Year Level</th><th>Username</th><th>Role</th></tr>"
 
     has_data = False
 
@@ -1844,7 +1958,7 @@ def registered():
                 content += f"<tr data-username='{u}'><td>{data['school_id']}</td><td>{data['complete_name']}</td><td>{data['course']}</td><td>{data.get('major', '-')}</td><td>{data['year_level']}</td><td>{u}</td><td>{data['role']}</td></tr>"
 
     if not has_data:
-        content += "<tr><td colspan='7' style='text-align:center;color:#888;padding:15px;'>Walang nakitang estudyante</td></tr>"
+        content += "<tr><td colspan='7' style='text-align:center;color:#888;padding:15px;'>No students found.</td></tr>"
 
     content += "</table></div>"
 
@@ -1863,9 +1977,9 @@ def registered():
                     "date_time": log.get("date_time", "-")
                 }
 
-        content += '<div class="card"><h2>🚗 Registered Vehicles</h2><p style="color:#666;margin-bottom:15px">Talaan ng mga sasakyang nairekord sa Guard Office.</p><div style="overflow-x:auto"><table><tr><th>Plate Number</th><th>Student / Driver</th><th>School ID</th><th>Last Recorded</th></tr>'
+        content += '<div class="card"><h2>🚗 Registered Vehicles</h2><p style="color:#666;margin-bottom:15px">List of vehicles recorded by the Guard Office.</p><div style="overflow-x:auto"><table><tr><th>Plate Number</th><th>Student / Driver</th><th>School ID</th><th>Last Recorded</th></tr>'
         if not registered_vehicles:
-            content += '<tr><td colspan="4" style="text-align:center">Wala pang registered/recorded vehicle.</td></tr>'
+            content += '<tr><td colspan="4" style="text-align:center">No registered or recorded vehicles yet.</td></tr>'
         else:
             for vehicle in registered_vehicles.values():
                 content += f"<tr><td><b>{vehicle['plate']}</b></td><td>{vehicle['student_name']}</td><td>{vehicle['school_id']}</td><td>{vehicle['date_time']}</td></tr>"
@@ -1919,12 +2033,12 @@ def edit_user(username):
     </select>
 </div>
 <div class="form-group">
-    <label>New Password (iwanang blangko kung ayaw baguhin)</label>
-    <input type="password" name="password" placeholder="Baguhin ang password">
+    <label>New Password (leave blank to keep the current password)</label>
+    <input type="password" name="password" placeholder="Change password">
 </div>
 <div style="display:flex;gap:10px;margin-top:20px;">
-    <button type="submit" class="submit-btn">💾 I-save ang Pagbabago</button>
-    <a href="/registered" class="cancel-btn">❌ Kanselahin</a>
+    <button type="submit" class="submit-btn">💾 Save Changes</button>
+    <a href="/registered" class="cancel-btn">❌ Cancel</a>
 </div>
 </form>
 </div>"""
@@ -1958,32 +2072,32 @@ def dashboard():
 
     content = '<div class="dashboard-hero">'
     content += '<div class="hero-date">SLSU-JGE • STUDENT INFORMATION SYSTEM</div>'
-    content += f'<div class="hero-title">Magandang araw, {user_data.get("complete_name", "User").split()[0]}! 👋</div>'
+    content += f'<div class="hero-title">Good day, {user_data.get("complete_name", "User").split()[0]}! 👋</div>'
     if role == "student":
-        content += '<div class="hero-subtitle">Tingnan ang impormasyon mo at mag-request ng school documents.</div>'
+        content += '<div class="hero-subtitle">View your information and request school documents.</div>'
         content += '<a class="hero-link" href="/registrar">📄 &nbsp; Document Requests</a></div>'
     else:
-        content += '<div class="hero-subtitle">Subaybayan ang mga estudyante, kahilingan, at aktibidad ng campus sa iisang lugar.</div>'
-        content += '<a class="hero-link" href="/registered">▤ &nbsp; Tingnan ang Records</a></div>'
+        content += '<div class="hero-subtitle">Track students, requests, and campus activity in one place.</div>'
+        content += '<a class="hero-link" href="/registered">▤ &nbsp; View Records</a></div>'
 
     if role == "admin":
         stats = [
-            ("♙", "Kabuuang Estudyante", len(student_accounts), "#e2f7f0"),
+            ("♙", "Total Students", len(student_accounts), "#e2f7f0"),
             ("◷", "Pending Accounts", len(pending_users), "#fff2dc"),
             ("▤", "Document Requests", len(grade_requests), "#e8efff"),
             ("⚙", "Maintenance Reports", len(maintenance_reports), "#ffe9e6")
         ]
     elif role == "registrar_admin":
-        stats = [("▤", "Kabuuang Estudyante", len(student_accounts), "#e2f7f0"), ("📄", "Document Requests", len(grade_requests), "#e8efff"), ("🔔", "Unread Notifications", len(unread), "#fff2dc"), ("📢", "Registrar Announcements", len(announcements.get("registrar", [])), "#ffe9e6")]
+        stats = [("▤", "Total Students", len(student_accounts), "#e2f7f0"), ("📄", "Document Requests", len(grade_requests), "#e8efff"), ("🔔", "Unread Notifications", len(unread), "#fff2dc"), ("📢", "Registrar Announcements", len(announcements.get("registrar", [])), "#ffe9e6")]
     elif role == "guard_admin":
-        stats = [("♙", "Kabuuang Estudyante", len(student_accounts), "#e2f7f0"), ("🚗", "Guard Logs", len(guard_logs), "#fff2dc"), ("🔔", "Unread Notifications", len(unread), "#e8efff"), ("📢", "Guard Announcements", len(announcements.get("guard", [])), "#ffe9e6")]
+        stats = [("♙", "Total Students", len(student_accounts), "#e2f7f0"), ("🚗", "Guard Logs", len(guard_logs), "#fff2dc"), ("🔔", "Unread Notifications", len(unread), "#e8efff"), ("📢", "Guard Announcements", len(announcements.get("guard", [])), "#ffe9e6")]
     elif role == "maintenance_admin":
-        stats = [("⚙", "Maintenance Reports", len(maintenance_reports), "#ffe9e6"), ("🔔", "Unread Notifications", len(unread), "#fff2dc"), ("📢", "Announcements", len(announcements.get("maintenance", [])), "#e2f7f0"), ("♙", "Kabuuang Estudyante", len(student_accounts), "#e8efff")]
+        stats = [("⚙", "Maintenance Reports", len(maintenance_reports), "#ffe9e6"), ("🔔", "Unread Notifications", len(unread), "#fff2dc"), ("📢", "Announcements", len(announcements.get("maintenance", [])), "#e2f7f0"), ("♙", "Total Students", len(student_accounts), "#e8efff")]
     else:
         stats = [("📚", "Course", user_data.get("course", "-"), "#e2f7f0"), ("🎓", "Year Level", user_data.get("year_level", "-"), "#e8efff"), ("🔔", "Unread Notifications", len(unread), "#fff2dc"), ("📋", "Document Requests", sum(1 for r in grade_requests if r.get("student_name") == user_data.get("complete_name")), "#ffe9e6")]
 
     stat_links = {
-        "Kabuuang Estudyante": "/registered",
+        "Total Students": "/registered",
         "Pending Accounts": "/pending",
         "Document Requests": "/registrar",
         "Maintenance Reports": "/maintenance",
@@ -2017,9 +2131,9 @@ def dashboard():
             for _, student in recent_students:
                 content += f'<tr><td>{student.get("complete_name", "-")}</td><td>{student.get("school_id", "-")}</td><td>{student.get("course", "-")} · {student.get("major", "-")}</td><td>{student.get("year_level", "-")}</td></tr>'
         else:
-            content += '<tr><td colspan="4" style="text-align:center;color:#829597">Wala pang registered student.</td></tr>'
+            content += '<tr><td colspan="4" style="text-align:center;color:#829597">No students registered yet.</td></tr>'
         content += '</table></div>'
-    content += '</div></div><div><div class="card"><h2>Mga Anunsyo</h2>'
+    content += '</div></div><div><div class="card"><h2>Announcements</h2>'
 
     role_office = {"registrar_admin": "registrar", "guard_admin": "guard", "maintenance_admin": "maintenance"}.get(role)
     notice_list = announcements.get(role_office, []) if role_office else [item for office_items in announcements.values() if isinstance(office_items, list) for item in office_items]
@@ -2027,14 +2141,14 @@ def dashboard():
         for notice in list(reversed(notice_list))[:4]:
             content += f'<div class="dashboard-notice"><div class="dashboard-notice-title">📢 {notice.get("title", "Announcement")}</div><div class="dashboard-notice-text">{notice.get("content", "")}</div></div>'
     else:
-        content += '<div class="dashboard-notice"><div class="dashboard-notice-title">📢 Wala pang anunsyo</div><div class="dashboard-notice-text">Lalabas dito ang pinakabagong updates mula sa campus office.</div></div>'
+        content += '<div class="dashboard-notice"><div class="dashboard-notice-title">📢 No announcements yet</div><div class="dashboard-notice-text">The latest updates from the campus office will appear here.</div></div>'
 
     content += '</div><div class="card"><h2>Notifications</h2>'
     if unread:
         for notice in unread[:4]:
-            content += f'<div class="dashboard-notice"><div class="dashboard-notice-title">🔔 {notice.get("message", "Update")}</div><a href="/notification/{notice.get("id", 0)}" style="font-size:10px;color:#0b9e88">Buksan ang notification →</a></div>'
+            content += f'<div class="dashboard-notice"><div class="dashboard-notice-title">🔔 {notice.get("message", "Update")}</div><small class="notification-date">{notice.get("date_time", "-")}</small><br><a href="/notification/{notice.get("id", 0)}" style="font-size:10px;color:#0b9e88">Open notification →</a></div>'
     else:
-        content += '<div class="dashboard-notice"><div class="dashboard-notice-text">Wala kang bagong notification.</div></div>'
+        content += '<div class="dashboard-notice"><div class="dashboard-notice-text">You have no new notifications.</div></div>'
     content += '</div></div></div>'
 
     return dashboard_template(content, "dashboard", "Dashboard")
@@ -2045,24 +2159,36 @@ def notifications_page():
     if not uname:
         return redirect('/')
 
-    items = notifications.get(uname, [])
+    items = deduplicate_legacy_notifications(notifications.get(uname, []))
     content = '<div class="card"><h2>🔔 Notifications</h2>'
 
     if not items:
-        content += '<p>Wala pang notification.</p>'
+        content += '<p>No notifications yet.</p>'
     else:
         for n in items:
             state = "font-weight:700;" if not n.get("read") else "opacity:0.65;"
             nid = n.get("id", 0)
-            content += f'''<a href="/notification/{nid}" class="notification-link">
-<div class="announce notification-card" style="{state}">
-<p><b>🔔 {n.get("message", "")}</b></p>
-<small>I-click ang notification para buksan.</small>
-</div>
-</a>'''
+            content += f'''<div class="announce notification-card" style="{state}">
+<a href="/notification/{nid}" class="notification-link"><p><b>{n.get("message", "")}</b></p>
+<small>Click the notification to open it.</small></a>
+<small class="notification-date">{n.get("date_time", "-")}</small>
+<form method="POST" action="/delete-notification/{nid}" style="margin-top:10px" onsubmit="return confirm('Delete this notification?')"><button type="submit" class="delete-btn">Delete</button></form>
+</div>'''
 
     content += '</div>'
     return dashboard_template(content, "notifications", "Notifications")
+
+
+@app.route('/delete-notification/<int:notification_id>', methods=["POST"])
+def delete_notification(notification_id):
+    uname = get_current_user()
+    if not uname:
+        return redirect('/')
+
+    user_items = notifications.get(uname, [])
+    notifications[uname] = [item for item in user_items if item.get("id") != notification_id]
+    save_data()
+    return redirect('/notifications')
 
 
 @app.route('/notification/<int:notification_id>')
@@ -2099,14 +2225,31 @@ def profile():
         }, ensure_ascii=False).replace("<", "\\u003c")
         barcode_html = f"""<div class="card student-barcode-card" style="text-align:center">
 <h3>🪪 Student QR Barcode</h3>
-<p>Ipakita o i-print ang QR code na ito para ma-scan ng Guard.</p>
+<p>Show or print this QR code for the Guard to scan.</p>
 <div id="studentQrCode" style="display:inline-block;background:#fff;padding:12px;margin:12px auto"></div>
 <p><b>{data.get('complete_name')}</b><br>School ID: {data.get('school_id')}</p>
-<button type="button" class="submit-btn" onclick="window.print()">🖨️ I-print ang QR Code</button>
+<button type="button" class="submit-btn" onclick="window.print()">🖨️ Print QR Code</button>
+<button type="button" class="submit-btn" onclick="downloadStudentQr()">⬇️ Download QR Code</button>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" crossorigin="anonymous"></script>
 <script>
 const studentQrPayload = {barcode_payload};
+function downloadStudentQr() {{
+    const qrContainer = document.getElementById("studentQrCode");
+    const canvas = qrContainer.querySelector("canvas");
+    const image = qrContainer.querySelector("img");
+    const downloadLink = document.createElement("a");
+    downloadLink.download = "student-qr-code.png";
+    if (canvas) {{
+        downloadLink.href = canvas.toDataURL("image/png");
+    }} else if (image && image.src) {{
+        downloadLink.href = image.src;
+    }} else {{
+        alert("The QR code is not ready yet. Please wait and try again.");
+        return;
+    }}
+    downloadLink.click();
+}}
 if (window.QRCode) {{
     new QRCode(document.getElementById("studentQrCode"), {{
         text: JSON.stringify(studentQrPayload), width: 220, height: 220,
@@ -2114,18 +2257,18 @@ if (window.QRCode) {{
         correctLevel: QRCode.CorrectLevel.M
     }});
 }} else {{
-    document.getElementById("studentQrCode").textContent = "Hindi ma-load ang QR generator. Subukang i-refresh ang page.";
+    document.getElementById("studentQrCode").textContent = "The QR code generator could not load. Try refreshing the page.";
 }}
 </script>"""
 
     content = f"""<div class="card">
-<h2>👤 Aking Profile</h2>
-<p class="info-row"><b>Pangalan:</b> {data.get('complete_name')}</p>
+<h2>👤 My Profile</h2>
+<p class="info-row"><b>Name:</b> {data.get('complete_name')}</p>
 <p class="info-row"><b>Username:</b> {uname}</p>
 <p class="info-row"><b>School ID:</b> {data.get('school_id')}</p>
 <p class="info-row"><b>Course:</b> {data.get('course')}</p><p class="info-row"><b>Major:</b> {data.get('major', '-')}</p>
 <p class="info-row"><b>Year Level:</b> {data.get('year_level')}</p>
-<p class="info-row"><b>Katungkulan:</b> {data.get('role', '').replace('_', ' ').title()}</p>
+<p class="info-row"><b>Role:</b> {data.get('role', '').replace('_', ' ').title()}</p>
 </div>{barcode_html}"""
 
     return dashboard_template(content, "profile", "My Profile")
@@ -2141,14 +2284,14 @@ def open_in_chrome():
     if chrome:
         subprocess.Popen([chrome, "http://127.0.0.1:5000"])
     else:
-        print("Hindi makita ang Chrome. Buksan nang mano-mano: http://127.0.0.1:5000")
+        print("Chrome was not found. Open manually: http://127.0.0.1:5000")
 
 
 if __name__ == '__main__':
     if not os.path.exists('logo.png'):
-        print("⚠️  Paalala: Ilagay ang logo.png sa parehong folder!")
+        print("⚠️  Reminder: Place logo.png in the same folder!")
     if not os.path.exists('bg.jpg'):
-        print("⚠️  Paalala: Ilagay ang bg.jpg sa parehong folder!")
+        print("⚠️  Reminder: Place bg.jpg in the same folder!")
 
     if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
         threading.Timer(1.5, open_in_chrome).start()
@@ -2156,7 +2299,7 @@ if __name__ == '__main__':
     try:
         import cryptography  # Required by Werkzeug for its temporary HTTPS certificate.
         ssl_mode = 'adhoc'
-        print('HTTPS enabled. Buksan: https://127.0.0.1:5000 o https://<IP-address-ng-computer>:5000')
+        print('HTTPS enabled. Open: https://127.0.0.1:5000 or https://<computer-IP-address>:5000')
     except ImportError:
         ssl_mode = None
         print('HTTPS certificate dependency is missing. Website will start on HTTP: http://127.0.0.1:5000')
