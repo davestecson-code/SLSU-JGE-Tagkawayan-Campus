@@ -8,62 +8,6 @@
             "year_level": "4th Year",
             "role": "admin"
         },
-        "ivan": {
-            "password": "dave",
-            "complete_name": "Tecson, Ivan Dave V.",
-            "school_id": "24J-00255",
-            "course": "BSIT",
-            "year_level": "3rd Year",
-            "role": "student"
-        },
-        "klarenz": {
-            "password": "olviga",
-            "complete_name": "Olviga, Prince Klarenz",
-            "school_id": "24J-00004",
-            "course": "BSIT",
-            "year_level": "3rd Year",
-            "role": "student"
-        },
-        "she": {
-            "password": "1234",
-            "complete_name": "Estolano, Sheryl D.",
-            "school_id": "23J-00001",
-            "course": "BEED",
-            "year_level": "4th Year",
-            "role": "student"
-        },
-        "ambo": {
-            "password": "miranda",
-            "complete_name": "john Rickmhel Miranda",
-            "school_id": "24J-00001",
-            "course": "BSIT",
-            "year_level": "1st Year",
-            "role": "student"
-        },
-        "RIKMOL": {
-            "password": "ROKMOL",
-            "complete_name": "john rickmhel",
-            "school_id": "24J-00006",
-            "course": "BSIT",
-            "year_level": "3rd Year",
-            "role": "student"
-        },
-        "Jaylo": {
-            "password": "zamora",
-            "complete_name": "Zamora, Jaylo",
-            "school_id": "24J-00005",
-            "course": "BSFAS",
-            "year_level": "1st Year",
-            "role": "student"
-        },
-        "EYANG": {
-            "password": "MAMAMO",
-            "complete_name": "RHEA VERGARA",
-            "school_id": "24J-12345",
-            "course": "BSBA",
-            "year_level": "2nd Year",
-            "role": "student"
-        },
         "registrar_admin": {
             "password": "registrar123",
             "school_id": "2022-0002",
@@ -88,69 +32,54 @@
             "year_level": "N/A",
             "role": "maintenance_admin"
         },
-        "ivanjohn": {
-            "password": "1234",
-            "complete_name": "Ivan John D. Estolano",
-            "school_id": "24J-00007",
+        "mhel": {
+            "password": "mhel",
+            "complete_name": "rickmhel",
+            "school_id": "321",
             "course": "BSIT",
+            "major": "BindTech",
+            "year_level": "1st Year",
+            "role": "student"
+        },
+        "ivan": {
+            "password": "dave",
+            "complete_name": "Tecson, Ivan Dave V.",
+            "school_id": "24J-00255",
+            "course": "BSIT",
+            "major": "Computer Technology",
             "year_level": "3rd Year",
             "role": "student"
         },
-        "juan": {
+        "she": {
             "password": "1234",
-            "complete_name": "Juan Dela Cruz",
-            "school_id": "24J-00024",
-            "course": "BSIT",
-            "year_level": "2nd Year",
+            "complete_name": "Estolano, Sheryl D.",
+            "school_id": "23J-0308",
+            "course": "BEED",
+            "major": "",
+            "year_level": "4th Year",
             "role": "student"
         },
-        "daves": {
-            "password": "1234",
-            "complete_name": "daves",
-            "school_id": "100J-10000",
-            "course": "BSED",
-            "year_level": "2nd Year",
-            "role": "student"
-        },
-        "KATH": {
-            "password": "123KATH",
-            "complete_name": "kathrina itu",
-            "school_id": "24J-00234",
-            "course": "BSFAS",
-            "year_level": "3rd Year",
+        "ako": {
+            "password": "ako",
+            "complete_name": "ako ito",
+            "school_id": "987",
+            "course": "BSBA",
+            "major": "Financial Management",
+            "year_level": "1st Year",
             "role": "student"
         }
     },
     "pending_users": {},
     "maintenance_reports": [
         {
-            "description": "asdsd",
-            "location": "asdsddd",
-            "reported_by": "sddaddd",
-            "id": 5,
-            "status": "Pending",
-            "reported_by_username": null,
-            "reported_by_user": "",
-            "date_time": "-"
-        },
-        {
-            "description": "adssd",
-            "location": "asdd",
-            "reported_by": "asds",
-            "date_time": "2026-09-20 09:09:02 PM",
-            "id": 7,
-            "status": "Completed",
-            "reported_by_username": null,
-            "reported_by_user": ""
-        },
-        {
-            "id": 10,
-            "description": "asdd",
-            "location": "asd",
+            "id": 1,
+            "description": "asd",
+            "location": "sad",
             "reported_by": "asd",
             "reported_by_user": "ivan",
-            "status": "Processing",
-            "date_time": "2026-09-21 12:19:11 AM"
+            "image": "",
+            "status": "Pending",
+            "date_time": "2026-10-07 10:44:13 PM"
         }
     ],
     "announcements": {
@@ -163,133 +92,61 @@
                 "author": "Admin User"
             }
         ],
-        "maintenance": [
-            {
-                "id": 1,
-                "title": "saadasd",
-                "content": "asdsd",
-                "author": "Admin User",
-                "date_time": "2026-09-21 12:19:59 AM"
-            }
-        ]
+        "maintenance": []
     },
     "grade_requests": [
         {
             "id": 1,
-            "student_name": "Admin User",
-            "school_id": "2022-0001",
-            "course": "BS Information Technology",
-            "year_level": "4th Year",
+            "student_name": "Tecson, Ivan Dave V.",
+            "school_id": "24J-00255",
+            "course": "BSIT",
+            "department": "BSIT",
+            "major": "Computer Technology",
+            "year_level": "3rd Year",
             "document_type": "grades",
-            "purpose": "for ea",
-            "status": "Ready",
-            "requested_by": "admin",
+            "purpose": "for EA",
+            "status": "Processing",
+            "requested_by": "ivan",
+            "requested_at": "2026-10-07 10:56:38 PM",
             "grade_year": "2nd Year",
-            "grade_sem": "2nd Sem"
+            "grade_sem": "1st Sem"
         },
         {
             "id": 2,
             "student_name": "Tecson, Ivan Dave V.",
             "school_id": "24J-00255",
             "course": "BSIT",
+            "department": "BSIT",
+            "major": "Computer Technology",
             "year_level": "3rd Year",
-            "document_type": "ctc",
-            "purpose": "fa",
-            "status": "Pending",
+            "document_type": "grades",
+            "purpose": "asd",
+            "status": "Cancelled",
             "requested_by": "ivan",
-            "cor_file": "ctc_2_20261006160027_qrph.png",
-            "cor_original_name": "qrph.png"
+            "requested_at": "2026-10-07 11:07:37 PM",
+            "grade_year": "3rd Year",
+            "grade_sem": "1st Sem"
         }
     ],
     "notifications": {
         "ivan": [
             {
-                "id": 11,
-                "message": "\ud83d\udccb Update sa document request mo: GRADES \u2192 Processing.",
-                "link": "/registrar",
-                "office": "registrar_admin",
-                "read": true,
-                "date_time": "2026-09-22 10:12:17 AM"
-            },
-            {
-                "id": 10,
-                "message": "\ud83d\udccb Update sa document request mo: GRADES \u2192 Processing.",
-                "link": "/registrar",
-                "office": "registrar_admin",
-                "read": true,
-                "date_time": "2026-09-21 09:37:00 AM"
-            },
-            {
-                "id": 9,
-                "message": "\ud83d\udccb Update sa document request mo: GRADES \u2192 Processing.",
-                "link": "/registrar",
-                "office": "registrar_admin",
-                "read": true,
-                "date_time": "2026-09-21 09:13:25 AM"
-            },
-            {
-                "id": 8,
-                "message": "\ud83d\udce2 Bagong announcement mula sa Registrar Office: asdsd",
-                "link": "/registrar",
-                "office": "registrar_admin",
-                "read": true,
-                "date_time": "2026-09-21 12:25:32 AM"
-            },
-            {
-                "id": 7,
-                "message": "\ud83d\udccb Update sa document request mo: TOR \u2192 Ready.",
-                "link": "/registrar",
-                "office": "registrar_admin",
-                "read": false,
-                "date_time": "2026-09-21 12:25:12 AM"
-            },
-            {
-                "id": 6,
-                "message": "\ud83d\udccb Update sa document request mo: GRADES \u2192 Completed.",
-                "link": "/registrar",
-                "office": "registrar_admin",
-                "read": false,
-                "date_time": "2026-09-21 12:25:09 AM"
-            },
-            {
-                "id": 5,
-                "message": "\ud83d\udccb Update sa document request mo: GRADES \u2192 Processing.",
-                "link": "/registrar",
-                "office": "registrar_admin",
-                "read": true,
-                "date_time": "2026-09-21 12:20:50 AM"
-            },
-            {
-                "id": 4,
-                "message": "\ud83d\udd27 Maintenance report mo ay PROCESSING na.",
-                "link": "/maintenance",
-                "office": "maintenance_admin",
-                "read": true,
-                "date_time": "2026-09-21 12:20:46 AM"
-            },
-            {
-                "id": 3,
-                "message": "\ud83d\udce2 Bagong announcement mula sa Maintenance Office: saadasd",
-                "link": "/maintenance",
-                "office": "maintenance_admin",
-                "read": true,
-                "date_time": "2026-09-21 12:19:59 AM"
-            },
-            {
                 "id": 2,
-                "message": "\ud83d\udccb Update sa document request mo: GRADES \u2192 Completed.",
+                "message": "\u2705 Your GRADES request (Request #2) was submitted to the Registrar Office.",
                 "link": "/registrar",
                 "office": "registrar_admin",
-                "read": true,
-                "date_time": "2026-09-21 12:14:03 AM"
+                "read": false,
+                "date_time": "2026-10-07 11:14:55 PM",
+                "reference_id": "request-2-submitted-student"
             },
             {
                 "id": 1,
-                "message": "\ud83d\udccb Update sa document request mo: TOR \u2192 Processing.",
+                "message": "\u2705 Your GRADES request (Request #1) was submitted to the Registrar Office.",
                 "link": "/registrar",
                 "office": "registrar_admin",
-                "read": true,
-                "date_time": "2026-09-21 12:13:59 AM"
+                "read": false,
+                "date_time": "2026-10-07 11:14:55 PM",
+                "reference_id": "request-1-submitted-student"
             },
             {
                 "message": "\ud83d\udd27 Maintenance report mo (ret) ay COMPLETED na.",
@@ -357,185 +214,69 @@
         ],
         "admin": [
             {
-                "id": 14,
-                "message": "\ud83d\udcc4 Bagong document request mula kay Tecson, Ivan Dave V. \u2014 CTC.",
-                "link": "/registrar",
-                "office": null,
-                "read": false,
-                "date_time": "2026-10-06 04:00:27 PM"
-            },
-            {
-                "id": 13,
-                "message": "\ud83d\udccb Update sa document request mo: GRADES \u2192 Ready.",
-                "link": "/registrar",
-                "office": "registrar_admin",
-                "read": false,
-                "date_time": "2026-10-06 03:59:22 PM"
-            },
-            {
-                "id": 12,
-                "message": "\ud83d\udccb Update sa document request mo: GRADES \u2192 Processing.",
-                "link": "/registrar",
-                "office": "registrar_admin",
-                "read": false,
-                "date_time": "2026-10-06 03:59:08 PM"
-            },
-            {
-                "id": 11,
-                "message": "\ud83d\udcc4 Bagong document request mula kay Admin User \u2014 GRADES.",
-                "link": "/registrar",
-                "office": null,
-                "read": false,
-                "date_time": "2026-10-06 03:53:18 PM"
-            },
-            {
-                "id": 10,
-                "message": "\ud83d\udcc4 Bagong document request mula kay Tecson, Ivan Dave V. \u2014 GRADES.",
-                "link": "/registrar",
-                "office": null,
-                "read": true,
-                "date_time": "2026-09-22 10:10:53 AM"
-            },
-            {
-                "id": 9,
-                "message": "\ud83d\udce5 Bagong account approval request mula kay kathrina itu (KATH).",
-                "link": "/pending",
-                "office": null,
-                "read": false,
-                "date_time": "2026-09-22 10:01:08 AM"
-            },
-            {
-                "id": 8,
-                "message": "\ud83d\udcc4 Bagong document request mula kay Tecson, Ivan Dave V. \u2014 GRADES.",
-                "link": "/registrar",
-                "office": null,
-                "read": true,
-                "date_time": "2026-09-21 09:36:32 AM"
-            },
-            {
-                "id": 7,
-                "message": "\ud83d\udcc4 Bagong document request mula kay Tecson, Ivan Dave V. \u2014 GRADES.",
-                "link": "/registrar",
-                "office": null,
-                "read": true,
-                "date_time": "2026-09-21 09:12:40 AM"
-            },
-            {
-                "id": 6,
-                "message": "\ud83d\udce5 Bagong account approval request mula kay daves (daves).",
-                "link": "/pending",
-                "office": null,
-                "read": true,
-                "date_time": "2026-09-21 12:23:00 AM"
-            },
-            {
-                "id": 5,
-                "message": "\ud83d\udcc4 Bagong document request mula kay Tecson, Ivan Dave V. \u2014 GRADES.",
-                "link": "/registrar",
-                "office": null,
-                "read": true,
-                "date_time": "2026-09-21 12:19:30 AM"
-            },
-            {
                 "id": 4,
-                "message": "\ud83d\udd27 Bagong maintenance report: asdd \u2014 asd",
-                "link": "/maintenance",
-                "office": "maintenance_admin",
-                "read": true,
-                "date_time": "2026-09-21 12:19:11 AM"
+                "message": "Kinansela ni Tecson, Ivan Dave V. ang GRADES request.",
+                "link": "/registrar",
+                "office": null,
+                "read": false,
+                "date_time": "2026-10-07 11:18:35 PM"
             },
             {
                 "id": 3,
-                "message": "\ud83d\udcc4 Bagong document request mula kay Tecson, Ivan Dave V. \u2014 TOR.",
+                "message": "\ud83d\udcc4 New document request from Tecson, Ivan Dave V. \u2014 GRADES (Request #2).",
                 "link": "/registrar",
-                "office": null,
-                "read": true,
-                "date_time": "2026-09-21 12:13:24 AM"
+                "office": "registrar_admin",
+                "read": false,
+                "date_time": "2026-10-07 11:14:55 PM",
+                "reference_id": "request-2-submitted-office"
             },
             {
                 "id": 2,
-                "message": "\ud83d\udcc4 Bagong document request mula kay Tecson, Ivan Dave V. \u2014 GRADES.",
+                "message": "\ud83d\udcc4 New document request from Tecson, Ivan Dave V. \u2014 GRADES (Request #1).",
                 "link": "/registrar",
-                "read": true
+                "office": "registrar_admin",
+                "read": false,
+                "date_time": "2026-10-07 11:14:55 PM",
+                "reference_id": "request-1-submitted-office"
             },
             {
                 "id": 1,
-                "message": "\ud83d\udcc4 Bagong document request mula kay Tecson, Ivan Dave V. \u2014 GRADES.",
-                "link": "/registrar",
-                "read": true
+                "message": "\ud83d\udcc4 New document request from Tecson, Ivan Dave V. \u2014 GRADES.",
+                "link": "/registrar/registrar",
+                "office": "registrar_admin",
+                "read": true,
+                "date_time": "2026-10-07 11:07:37 PM"
             }
         ],
         "registrar_admin": [
             {
-                "id": 9,
-                "message": "\ud83d\udcc4 Bagong document request mula kay Tecson, Ivan Dave V. \u2014 CTC.",
-                "link": "/registrar",
-                "office": null,
-                "read": false,
-                "date_time": "2026-10-06 04:00:27 PM"
-            },
-            {
-                "id": 8,
-                "message": "\ud83d\udcc4 Bagong document request mula kay Admin User \u2014 GRADES.",
-                "link": "/registrar",
-                "office": null,
-                "read": false,
-                "date_time": "2026-10-06 03:53:18 PM"
-            },
-            {
-                "id": 7,
-                "message": "\ud83d\udcc4 Bagong document request mula kay Tecson, Ivan Dave V. \u2014 GRADES.",
-                "link": "/registrar",
-                "office": null,
-                "read": true,
-                "date_time": "2026-09-22 10:10:53 AM"
-            },
-            {
-                "id": 6,
-                "message": "\ud83d\udcc4 Bagong document request mula kay Tecson, Ivan Dave V. \u2014 GRADES.",
-                "link": "/registrar",
-                "office": null,
-                "read": true,
-                "date_time": "2026-09-21 09:36:32 AM"
-            },
-            {
-                "id": 5,
-                "message": "\ud83d\udcc4 Bagong document request mula kay Tecson, Ivan Dave V. \u2014 GRADES.",
-                "link": "/registrar",
-                "office": null,
-                "read": true,
-                "date_time": "2026-09-21 09:12:40 AM"
-            },
-            {
-                "id": 4,
-                "message": "\ud83d\udcc4 Bagong document request mula kay Tecson, Ivan Dave V. \u2014 GRADES.",
-                "link": "/registrar",
-                "office": null,
-                "read": true,
-                "date_time": "2026-09-21 12:19:30 AM"
-            },
-            {
-                "id": 3,
-                "message": "\ud83d\udcc4 Bagong document request mula kay Tecson, Ivan Dave V. \u2014 TOR.",
-                "link": "/registrar",
-                "office": null,
-                "read": true,
-                "date_time": "2026-09-21 12:13:24 AM"
-            },
-            {
                 "id": 2,
-                "message": "\ud83d\udcc4 Bagong document request mula kay Tecson, Ivan Dave V. \u2014 GRADES.",
+                "message": "\ud83d\udcc4 New document request from Tecson, Ivan Dave V. \u2014 GRADES (Request #2).",
                 "link": "/registrar",
-                "read": true
+                "office": "registrar_admin",
+                "read": false,
+                "date_time": "2026-10-07 11:45:33 PM",
+                "reference_id": "request-2-submitted-office"
             },
             {
                 "id": 1,
-                "message": "\ud83d\udcc4 Bagong document request mula kay Tecson, Ivan Dave V. \u2014 GRADES.",
+                "message": "\ud83d\udcc4 New document request from Tecson, Ivan Dave V. \u2014 GRADES (Request #1).",
                 "link": "/registrar",
-                "read": true
+                "office": "registrar_admin",
+                "read": false,
+                "date_time": "2026-10-07 11:45:33 PM",
+                "reference_id": "request-1-submitted-office"
             }
         ],
         "maintenance_admin": [
+            {
+                "id": 2,
+                "message": "\ud83d\udd27 New maintenance report: asd \u2014 sad",
+                "link": "/maintenance",
+                "office": "maintenance_admin",
+                "read": false,
+                "date_time": "2026-10-07 10:44:13 PM"
+            },
             {
                 "id": 1,
                 "message": "\ud83d\udd27 Bagong maintenance report: asdd \u2014 asd",
@@ -565,11 +306,35 @@
         ],
         "she": [
             {
+                "id": 5,
+                "message": "\ud83d\udccb Update sa document request mo: GRADES \u2192 Completed.",
+                "link": "/registrar",
+                "office": "registrar_admin",
+                "read": false,
+                "date_time": "2026-10-07 06:51:24 PM"
+            },
+            {
+                "id": 4,
+                "message": "\ud83d\udccb Update sa document request mo: GRADES \u2192 Ready.",
+                "link": "/registrar",
+                "office": "registrar_admin",
+                "read": false,
+                "date_time": "2026-10-07 06:51:16 PM"
+            },
+            {
+                "id": 3,
+                "message": "\ud83d\udccb Update sa document request mo: GRADES \u2192 Processing.",
+                "link": "/registrar",
+                "office": "registrar_admin",
+                "read": false,
+                "date_time": "2026-10-07 06:51:12 PM"
+            },
+            {
                 "id": 2,
                 "message": "\ud83d\udce2 Bagong announcement mula sa Registrar Office: asdsd",
                 "link": "/registrar",
                 "office": "registrar_admin",
-                "read": false,
+                "read": true,
                 "date_time": "2026-09-21 12:25:32 AM"
             },
             {
@@ -682,32 +447,6 @@
             }
         ]
     },
-    "guard_logs": [
-        {
-            "id": 2,
-            "scan_type": "id",
-            "school_id": "24J-00255",
-            "student_name": "Tecson, Ivan Dave V.",
-            "course": "BSIT",
-            "year_level": "3rd Year",
-            "vehicle_plate": "",
-            "purpose": "",
-            "direction": "OUT",
-            "guard": "Guard Admin",
-            "date_time": "2026-10-06 03:46:30 PM"
-        },
-        {
-            "id": 1,
-            "scan_type": "id",
-            "school_id": "24J-00255",
-            "student_name": "Tecson, Ivan Dave V.",
-            "course": "BSIT",
-            "year_level": "3rd Year",
-            "vehicle_plate": "",
-            "purpose": "",
-            "direction": "IN",
-            "guard": "Guard Admin",
-            "date_time": "2026-10-06 03:43:33 PM"
-        }
-    ]
+    "guard_logs": [],
+    "guard_on_duty": "si rikmel"
 }

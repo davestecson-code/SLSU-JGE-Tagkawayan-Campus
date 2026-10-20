@@ -76,36 +76,57 @@ def get_major_course_key(course):
 YEAR_LEVELS = ["1st Year", "2nd Year", "3rd Year", "4th Year"]
 
 
+def _database_url():
+    url = os.environ.get("DATABASE_URL", "").strip()
+    if url.startswith("postgres://"):
+        url = "postgresql://" + url[len("postgres://"):]
+    return url
+
+
+def _load_local_data():
+    if not os.path.exists(DB_FILE):
+        return None
+    with open(DB_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _load_database_data(database_url):
+    import psycopg2
+
+    with psycopg2.connect(database_url) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS slsu_app_state (
+                    id SMALLINT PRIMARY KEY CHECK (id = 1),
+                    data JSONB NOT NULL,
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """)
+            cursor.execute("SELECT data FROM slsu_app_state WHERE id = 1")
+            row = cursor.fetchone()
+    if row:
+        return row[0]
+    # On first connection, import the existing JSON file if it is present.
+    return _load_local_data()
+
+
 def load_data():
     global users, pending_users, maintenance_reports, announcements, grade_requests, notifications, guard_logs, guard_on_duty
-    if os.path.exists(DB_FILE):
-        with open(DB_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            users = data.get("users", {})
-            pending_users = data.get("pending_users", {})
-            maintenance_reports = data.get("maintenance_reports", [])
-            announcements = data.get("announcements", {
-                "registrar": [],
-                "guard": [],
-                "maintenance": []
-            })
-            grade_requests = data.get("grade_requests", [])
-            notifications = data.get("notifications", {})
-            guard_logs = data.get("guard_logs", [])
-            guard_on_duty = str(data.get("guard_on_duty", "") or "")
-    else:
-        users = {}
-        pending_users = {}
-        maintenance_reports = []
-        announcements = {
-            "registrar": [],
-            "guard": [],
-            "maintenance": []
-        }
-        grade_requests = []
-        notifications = {}
-        guard_logs = []
-        guard_on_duty = ""
+    database_url = _database_url()
+    data = _load_database_data(database_url) if database_url else _load_local_data()
+    data = data or {}
+    users = data.get("users", {})
+    pending_users = data.get("pending_users", {})
+    maintenance_reports = data.get("maintenance_reports", [])
+    announcements = data.get("announcements", {
+        "registrar": [],
+        "guard": [],
+        "maintenance": []
+    })
+    grade_requests = data.get("grade_requests", [])
+    notifications = data.get("notifications", {})
+    guard_logs = data.get("guard_logs", [])
+    guard_on_duty = str(data.get("guard_on_duty", "") or "")
 
     notifications = notifications if isinstance(notifications, dict) else {}
     guard_logs = guard_logs if isinstance(guard_logs, list) else []
@@ -136,21 +157,43 @@ def allowed_file(filename):
 
 
 def save_data():
+    data = {
+        "users": users,
+        "pending_users": pending_users,
+        "maintenance_reports": maintenance_reports,
+        "announcements": announcements,
+        "grade_requests": grade_requests,
+        "notifications": notifications,
+        "guard_logs": guard_logs,
+        "guard_on_duty": guard_on_duty
+    }
+    database_url = _database_url()
+    if database_url:
+        import psycopg2
+        from psycopg2.extras import Json
+
+        with psycopg2.connect(database_url) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS slsu_app_state (
+                        id SMALLINT PRIMARY KEY CHECK (id = 1),
+                        data JSONB NOT NULL,
+                        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    )
+                """)
+                cursor.execute("""
+                    INSERT INTO slsu_app_state (id, data, updated_at)
+                    VALUES (1, %s, NOW())
+                    ON CONFLICT (id) DO UPDATE
+                    SET data = EXCLUDED.data, updated_at = NOW()
+                """, (Json(data),))
+        return
+
     with open(DB_FILE, "w", encoding="utf-8") as f:
-        json.dump({
-            "users": users,
-            "pending_users": pending_users,
-            "maintenance_reports": maintenance_reports,
-            "announcements": announcements,
-            "grade_requests": grade_requests,
-            "notifications": notifications,
-            "guard_logs": guard_logs,
-            "guard_on_duty": guard_on_duty
-        }, f, indent=4)
+        json.dump(data, f, indent=4)
 
 
 load_data()
-
 
 def get_current_user():
     uname = session.get("username")
@@ -702,7 +745,7 @@ body::before{{content:'';position:absolute;top:0;left:0;width:100%;height:100%;b
 <body>
 <div class="login-container">
 <div class="logo-circle"><img src="/logo.png" alt="SLSU Logo"></div>
-<h2 class="campus-name">SLSU-JGE TAGKAWAYAN CAMPUS</h2>
+<h2 class="campus-name">SLSU-JGE INTEGRATED SYSTEM</h2>
 {error_html}
 {success_html}
 <form action="/login" method="POST">
@@ -2348,3 +2391,4 @@ if __name__ == '__main__':
         print('Install cryptography to enable HTTPS for camera access over a LAN: python -m pip install cryptography')
 
     app.run(debug=True, host='0.0.0.0', port=5000, ssl_context=ssl_mode)
+
