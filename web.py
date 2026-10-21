@@ -113,6 +113,8 @@ def _load_database_data(database_url):
 def load_data():
     global users, pending_users, maintenance_reports, announcements, grade_requests, notifications, guard_logs, guard_on_duty
     database_url = _database_url()
+    if os.environ.get("RENDER", "").lower() == "true" and not database_url:
+        raise RuntimeError("DATABASE_URL is required on Render. Link the Neon environment group to this web service.")
     data = _load_database_data(database_url) if database_url else _load_local_data()
     data = data or {}
     users = data.get("users", {})
@@ -2516,6 +2518,7 @@ if __name__ == '__main__':
         print('Install cryptography to enable HTTPS for camera access over a LAN: python -m pip install cryptography')
 
     app.run(debug=True, host='0.0.0.0', port=5000, ssl_context=ssl_mode)
+
 
 
 
