@@ -353,7 +353,7 @@ def get_sidebar(active_page):
             "pending": f"Pending Accounts ({pending_count})" if pending_count else "Pending Accounts",
             "registered": "Registered Students",
             "registrar": "Registrar Office" + office_badge("registrar_admin"),
-            "guard": "Guard Office" + office_badge("guard_admin"),
+            "guard": "Civil Security and Services" + office_badge("guard_admin"),
             "maintenance": "Maintenance Office" + office_badge("maintenance_admin"),
             "profile": "Profile",
             "notifications": "Notifications" + (f' <span class="badge">{len(unread)}</span>' if unread else "")
@@ -370,7 +370,7 @@ def get_sidebar(active_page):
         pages = {
             "dashboard": "Dashboard",
             "registered": "Registered Students",
-            "guard": "Guard Office" + office_badge("guard_admin"),
+            "guard": "Civil Security and Services" + office_badge("guard_admin"),
             "profile": "Profile",
             "notifications": "Notifications" + (f' <span class="badge">{len(unread)}</span>' if unread else "")
         }
@@ -386,7 +386,7 @@ def get_sidebar(active_page):
         pages = {
             "dashboard": "Dashboard",
             "registrar": "Registrar Office" + office_badge("registrar_admin"),
-            "guard": "Guard Office" + office_badge("guard_admin"),
+            "guard": "Civil Security and Services" + office_badge("guard_admin"),
             "maintenance": "Maintenance Office" + office_badge("maintenance_admin"),
             "profile": "Profile",
             "notifications": "Notifications" + (f' <span class="badge">{len(unread)}</span>' if unread else "")
@@ -995,7 +995,7 @@ def add_announcement(office):
         # The three offices have separate announcement channels.
         office_names = {
             "registrar": "Registrar Office",
-            "guard": "Guard Office",
+            "guard": "Civil Security and Services",
             "maintenance": "Maintenance Office"
         }
         office_roles = {
@@ -1204,6 +1204,123 @@ def cancel_request(req_id):
     return redirect('/registrar')
 
 
+@app.route('/edit-request/<int:req_id>', methods=['GET', 'POST'])
+def edit_request(req_id):
+    uname = get_current_user()
+    if not uname or users.get(uname, {}).get('role') != 'student':
+        return redirect('/')
+
+    req = next((item for item in grade_requests if item.get('id') == req_id and item.get('requested_by') == uname), None)
+    if not req:
+        return redirect('/registrar')
+    if req.get('status', 'Pending') != 'Pending':
+        return redirect('/registrar?error=edit_not_allowed')
+
+    error_messages = {
+        'invalid_document': 'Pumili ng valid na document type.',
+        'missing_purpose': 'Ilagay ang purpose ng request.',
+        'missing_grade_fields': 'Piliin ang year level at semester para sa Copy of Grades.',
+        'missing_cor': 'Kailangan mag-upload ng COR file para sa CTC.',
+        'invalid_cor': 'Hindi suportado ang file. PDF, JPG, JPEG, o PNG lang ang puwede.'
+    }
+    error_notice = error_messages.get(request.args.get('error', ''), '')
+
+    if request.method == 'POST':
+        doc_type = request.form.get('document_type', '').strip()
+        purpose = request.form.get('purpose', '').strip()
+        grade_year = request.form.get('grade_year', '').strip()
+        grade_sem = request.form.get('grade_sem', '').strip()
+        cor_file = request.files.get('cor_file')
+
+        if doc_type not in ['grades', 'tor', 'ctc']:
+            return redirect(f'/edit-request/{req_id}?error=invalid_document')
+        if not purpose:
+            return redirect(f'/edit-request/{req_id}?error=missing_purpose')
+        if doc_type == 'grades' and (grade_year not in YEAR_LEVELS or grade_sem not in ['1st Sem', '2nd Sem']):
+            return redirect(f'/edit-request/{req_id}?error=missing_grade_fields')
+        if cor_file and cor_file.filename:
+            if doc_type != 'ctc' or not allowed_file(cor_file.filename):
+                return redirect(f'/edit-request/{req_id}?error=invalid_cor')
+        elif doc_type == 'ctc' and not req.get('cor_file'):
+            return redirect(f'/edit-request/{req_id}?error=missing_cor')
+
+        req['document_type'] = doc_type
+        req['purpose'] = purpose
+        if doc_type == 'grades':
+            req['grade_year'] = grade_year
+            req['grade_sem'] = grade_sem
+        else:
+            req.pop('grade_year', None)
+            req.pop('grade_sem', None)
+
+        if doc_type == 'ctc':
+            if cor_file and cor_file.filename:
+                original_name = secure_filename(cor_file.filename)
+                stored_name = f"ctc_{req_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{original_name}"
+                cor_file.save(os.path.join(UPLOAD_FOLDER, stored_name))
+                req['cor_file'] = stored_name
+                req['cor_original_name'] = original_name
+        else:
+            req.pop('cor_file', None)
+            req.pop('cor_original_name', None)
+
+        req['edited_at'] = datetime.now().strftime('%Y-%m-%d %I:%M:%S %p')
+        save_data()
+        add_notification(
+            ['admin', 'registrar_admin'],
+            f"✏️ {users[uname].get('complete_name', uname)} updated pending request #{req_id}.",
+            '/registrar', 'registrar_admin',
+            f"request-{req_id}-edited-{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
+        )
+        return redirect('/registrar?edited=1')
+
+    doc_type = req.get('document_type', 'tor')
+    document_options = [('grades', '📊 Copy of Grades'), ('tor', '📑 Transcript of Records (TOR)'), ('ctc', '📋 Certified True Copy (CTC)')]
+    document_select = ''.join(
+        f'<option value="{value}" {"selected" if value == doc_type else ""}>{label}</option>'
+        for value, label in document_options
+    )
+    year_options = ''.join(
+        f'<option value="{year}" {"selected" if req.get("grade_year") == year else ""}>{year}</option>'
+        for year in YEAR_LEVELS
+    )
+    semester_options = ''.join(
+        f'<option value="{semester}" {"selected" if req.get("grade_sem") == semester else ""}>{label}</option>'
+        for semester, label in [('1st Sem', '1st Semester'), ('2nd Sem', '2nd Semester')]
+    )
+    existing_cor = req.get('cor_file', '') if doc_type == 'ctc' else ''
+    existing_cor_html = (
+        f'<p>Current COR: <a href="/uploads/{html_escape(existing_cor, quote=True)}" target="_blank">View attached file</a>. You may keep it or upload a replacement.</p>'
+        if existing_cor else ''
+    )
+    cor_required = 'required' if doc_type == 'ctc' and not existing_cor else ''
+    error_html = f'<p style="color:#b42318;font-weight:700">{error_notice}</p>' if error_notice else ''
+    purpose_value = html_escape(str(req.get('purpose', '')))
+    content = f'''<div class="card"><h2>✏️ Edit Pending Request #{req_id}</h2>
+<p>Pending requests lang ang puwedeng i-edit.</p>{error_html}
+<form method="POST" action="/edit-request/{req_id}" class="form-group" enctype="multipart/form-data">
+<div class="form-group"><label>Document:</label><select name="document_type" id="editDocType" required onchange="toggleEditRequestFields()">{document_select}</select></div>
+<div id="editGradeFields" class="form-group"><label>Year Level:</label><select name="grade_year">{year_options}</select><label>Semester:</label><select name="grade_sem">{semester_options}</select></div>
+<div id="editCorFields" class="form-group"><label>COR attachment (PDF, JPG, JPEG, PNG):</label>{existing_cor_html}<input type="file" name="cor_file" id="editCorFile" accept=".pdf,.jpg,.jpeg,.png" {cor_required}></div>
+<div class="form-group"><label>Purpose:</label><textarea name="purpose" rows="4" required>{purpose_value}</textarea></div>
+<button type="submit" class="submit-btn">💾 Save Request</button> <a href="/registrar" class="cancel-btn">Cancel</a>
+</form></div>
+<script>
+function toggleEditRequestFields() {{
+  const type = document.getElementById('editDocType').value;
+  const grades = type === 'grades';
+  const ctc = type === 'ctc';
+  document.getElementById('editGradeFields').style.display = grades ? 'block' : 'none';
+  document.getElementById('editGradeFields').querySelector('[name="grade_year"]').required = grades;
+  document.getElementById('editGradeFields').querySelector('[name="grade_sem"]').required = grades;
+  document.getElementById('editCorFields').style.display = ctc ? 'block' : 'none';
+  const cor = document.getElementById('editCorFile');
+  cor.required = ctc && {str(not existing_cor).lower()};
+}}
+toggleEditRequestFields();
+</script>'''
+    return dashboard_template(content, 'registrar', 'Edit Request')
+
 @app.route('/uploads/<path:filename>')
 def uploaded_file(filename):
     uname = get_current_user()
@@ -1293,6 +1410,8 @@ def registrar():
         content += '<p style="color:#d32f2f;font-weight:bold;">⚠️ A COR upload is required for CTC.</p>'
     elif request_error == "invalid_cor":
         content += '<p style="color:#d32f2f;font-weight:bold;">⚠️ Invalid file. COR must be PDF, JPG, JPEG, or PNG.</p>'
+    elif request_error == "edit_not_allowed":
+        content += '<p style="color:#d32f2f;font-weight:bold;">This request is no longer pending, so it cannot be edited.</p>'
     elif request_error == "missing_major":
         content += '<p style="color:#d32f2f;font-weight:bold;">⚠️ Please select your major. It will be saved to your profile for future requests.</p>'
 
@@ -1462,6 +1581,8 @@ function toggleGradeFields() {
         elif request_error == "cancel_not_allowed":
             content += '<p style="color:#d32f2f;font-weight:bold;">This request can no longer be cancelled because it has been processed.</p>'
 
+        if request.args.get('edited') == '1':
+            content += '<p style="color:#087443;font-weight:bold;">✅ Your pending request has been updated.</p>'
         my_reqs = [r for r in grade_requests if r["requested_by"] == uname]
 
         if not my_reqs:
@@ -1499,6 +1620,10 @@ function toggleGradeFields() {
                 }.get(req["status"], "")
 
                 major_cell = f'<td>{req.get("major", "-") or "-"}</td>' if major_options else ''
+                edit_action = (
+                    f'<a href="/edit-request/{req["id"]}" class="edit-btn">✏️ Edit</a> '
+                    if req.get("status", "Pending") == "Pending" else ''
+                )
                 cancel_action = (
                     f'<form method="POST" action="/cancel-request/{req["id"]}" onsubmit="return confirm(\'Cancel this document request?\')" style="margin:0"><button type="submit" class="delete-btn">Cancel</button></form>'
                     if req.get("status", "Pending") == "Pending" else '-'
@@ -1512,7 +1637,7 @@ function toggleGradeFields() {
 <td>{details}</td>
 <td>{req["purpose"]}</td>
 <td class="{status_class}">{req["status"]}</td>
-<td>{cancel_action}</td>
+<td>{edit_action}{cancel_action}</td>
 </tr>'''
 
             content += '</table></div>'
@@ -1534,7 +1659,7 @@ def guard_log():
     vehicle_plate = request.form.get('vehicle_plate', '').strip().upper()
     visitor_name = request.form.get('visitor_name', '').strip()
     purpose = request.form.get('purpose', '').strip()
-    # Guard Office records entries only; clients cannot submit OUT events.
+    # Civil Security and Services records entries only; clients cannot submit OUT events.
     direction = 'IN'
     student_name = course = year_level = ''
     matched_student = None
@@ -1636,7 +1761,7 @@ def guard():
     duty_saved = request.args.get('duty_saved') == '1'
     error = request.args.get('error', '')
     unique_vehicles = {str(log.get("vehicle_plate", "")).strip().upper() for log in guard_logs if log.get("vehicle_plate")}
-    content = office_hero("Guard Office", "Campus entry monitoring, ID scanning, and access logs.", "🛡️", [("▣", "Registered Students", sum(1 for account in users.values() if account.get("role") == "student"), "sage"), ("◉", "Access Logs", len(guard_logs), "gold"), ("🚗", "Recorded Vehicles", len(unique_vehicles), "clay")]) + '<div class="card"><h2>📢 Announcements</h2>' 
+    content = office_hero("Civil Security and Services", "Campus entry monitoring, ID scanning, and access logs.", "🛡️", [("▣", "Registered Students", sum(1 for account in users.values() if account.get("role") == "student"), "sage"), ("◉", "Access Logs", len(guard_logs), "gold"), ("🚗", "Recorded Vehicles", len(unique_vehicles), "clay")]) + '<div class="card"><h2>📢 Announcements</h2>' 
     if can_edit:
         content += '''<form method="POST" action="/guard/add" class="form-group">
 <div class="form-group"><label>Title</label><input name="title" required></div>
@@ -1771,7 +1896,7 @@ function prepareVehicleSubmit(){
 window.addEventListener('load',()=>{ if(document.getElementById('idQrReader')) startScanner('id'); });
 window.addEventListener('beforeunload',()=>{stopScanner('id');stopScanner('vehicle');});
 </script>'''
-    return dashboard_template(content, "guard", "Guard Office")
+    return dashboard_template(content, "guard", "Civil Security and Services")
 
 
 @app.route('/maintenance', methods=["GET", "POST"])
@@ -2047,7 +2172,7 @@ def registered():
 
     content += "</table></div></div>"
 
-    # Vehicle records are visible only to the main admin and Guard Office.
+    # Vehicle records are visible only to the main admin and Civil Security and Services.
     if role in ["admin", "guard_admin"]:
         registered_vehicles = {}
         for log in guard_logs:
@@ -2062,7 +2187,7 @@ def registered():
                     "date_time": log.get("date_time", "-")
                 }
 
-        content += '<div class="card"><h2>🚗 Registered Vehicles</h2><p style="color:#666;margin-bottom:15px">List of vehicles recorded by the Guard Office.</p><div style="overflow-x:auto;-webkit-overflow-scrolling:touch"><table><tr><th>Plate Number</th><th>Student / Driver</th><th>School ID</th><th>Last Recorded</th></tr>'
+        content += '<div class="card"><h2>🚗 Registered Vehicles</h2><p style="color:#666;margin-bottom:15px">List of vehicles recorded by the Civil Security and Services.</p><div style="overflow-x:auto;-webkit-overflow-scrolling:touch"><table><tr><th>Plate Number</th><th>Student / Driver</th><th>School ID</th><th>Last Recorded</th></tr>'
         if not registered_vehicles:
             content += '<tr><td colspan="4" style="text-align:center">No registered or recorded vehicles yet.</td></tr>'
         else:
@@ -2391,4 +2516,8 @@ if __name__ == '__main__':
         print('Install cryptography to enable HTTPS for camera access over a LAN: python -m pip install cryptography')
 
     app.run(debug=True, host='0.0.0.0', port=5000, ssl_context=ssl_mode)
+
+
+
+
 
