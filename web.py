@@ -7,11 +7,34 @@ from html import escape as html_escape
 
 app = Flask(__name__)
 app.secret_key = "slsu_jge_secure_key_2026"
-DB_FILE = "data.json"
+DATA_FOLDER = "app_data"
 UPLOAD_FOLDER = "uploads"
+REQUEST_UPLOAD_FOLDER = os.path.join(UPLOAD_FOLDER, "registrar_requests")
 ALLOWED_FILE_EXTENSIONS = {"pdf", "png", "jpg", "jpeg"}
 ALLOWED_IMAGE_EXTENSIONS = {"png", "jpg", "jpeg"}
+DATA_DEFAULTS = {
+    "users": {},
+    "pending_users": {},
+    "maintenance_reports": [],
+    "announcements": {"registrar": [], "guard": [], "maintenance": []},
+    "grade_requests": [],
+    "notifications": {},
+    "guard_logs": [],
+    "guard_on_duty": ""
+}
+DATA_TABLES = {
+    "users": "slsu_users",
+    "pending_users": "slsu_pending_users",
+    "maintenance_reports": "slsu_maintenance_reports",
+    "announcements": "slsu_announcements",
+    "grade_requests": "slsu_grade_requests",
+    "notifications": "slsu_notifications",
+    "guard_logs": "slsu_guard_logs",
+    "guard_on_duty": "slsu_guard_on_duty"
+}
+os.makedirs(DATA_FOLDER, exist_ok=True)
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(REQUEST_UPLOAD_FOLDER, exist_ok=True)
 
 DEFAULT_ADMINS = {
     "admin": {
@@ -89,30 +112,36 @@ def _database_url():
 
 
 def _load_local_data():
-    if not os.path.exists(DB_FILE):
-        return None
-    with open(DB_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+    os.makedirs(DATA_FOLDER, exist_ok=True)
+    data = {}
+    for key, default in DATA_DEFAULTS.items():
+        path = os.path.join(DATA_FOLDER, f"{key}.json")
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                data[key] = json.load(f)
+        else:
+            data[key] = default
+    return data
 
 
 def _load_database_data(database_url):
     import psycopg2
 
+    data = {}
     with psycopg2.connect(database_url) as connection:
         with connection.cursor() as cursor:
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS slsu_app_state (
-                    id SMALLINT PRIMARY KEY CHECK (id = 1),
-                    data JSONB NOT NULL,
-                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                )
-            """)
-            cursor.execute("SELECT data FROM slsu_app_state WHERE id = 1")
-            row = cursor.fetchone()
-    if row:
-        return row[0]
-    # On first connection, import the existing JSON file if it is present.
-    return _load_local_data()
+            for key, table in DATA_TABLES.items():
+                cursor.execute(f"""
+                    CREATE TABLE IF NOT EXISTS {table} (
+                        id SMALLINT PRIMARY KEY CHECK (id = 1),
+                        data JSONB NOT NULL,
+                        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    )
+                """)
+                cursor.execute(f"SELECT data FROM {table} WHERE id = 1")
+                row = cursor.fetchone()
+                data[key] = row[0] if row else DATA_DEFAULTS[key]
+    return data
 
 
 def load_data():
@@ -181,23 +210,26 @@ def save_data():
 
         with psycopg2.connect(database_url) as connection:
             with connection.cursor() as cursor:
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS slsu_app_state (
-                        id SMALLINT PRIMARY KEY CHECK (id = 1),
-                        data JSONB NOT NULL,
-                        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                    )
-                """)
-                cursor.execute("""
-                    INSERT INTO slsu_app_state (id, data, updated_at)
-                    VALUES (1, %s, NOW())
-                    ON CONFLICT (id) DO UPDATE
-                    SET data = EXCLUDED.data, updated_at = NOW()
-                """, (Json(data),))
+                for key, table in DATA_TABLES.items():
+                    cursor.execute(f"""
+                        CREATE TABLE IF NOT EXISTS {table} (
+                            id SMALLINT PRIMARY KEY CHECK (id = 1),
+                            data JSONB NOT NULL,
+                            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                        )
+                    """)
+                    cursor.execute(f"""
+                        INSERT INTO {table} (id, data, updated_at)
+                        VALUES (1, %s, NOW())
+                        ON CONFLICT (id) DO UPDATE
+                        SET data = EXCLUDED.data, updated_at = NOW()
+                    """, (Json(data[key]),))
         return
 
-    with open(DB_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4)
+    os.makedirs(DATA_FOLDER, exist_ok=True)
+    for key, value in data.items():
+        with open(os.path.join(DATA_FOLDER, f"{key}.json"), "w", encoding="utf-8") as f:
+            json.dump(value, f, indent=4, ensure_ascii=False)
 
 
 load_data()
@@ -1128,8 +1160,10 @@ def submit_request():
     if doc_type == "ctc" and cor_file and cor_file.filename:
         original_name = secure_filename(cor_file.filename)
         stored_name = f"ctc_{new_request['id']}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{original_name}"
-        cor_file.save(os.path.join(UPLOAD_FOLDER, stored_name))
-        new_request["cor_file"] = stored_name
+        request_folder = os.path.join(REQUEST_UPLOAD_FOLDER, str(new_request["id"]))
+        os.makedirs(request_folder, exist_ok=True)
+        cor_file.save(os.path.join(request_folder, stored_name))
+        new_request["cor_file"] = os.path.join("registrar_requests", str(new_request["id"]), stored_name).replace(os.sep, "/")
         new_request["cor_original_name"] = original_name
 
     grade_requests.append(new_request)
@@ -1319,8 +1353,10 @@ def edit_request(req_id):
             if cor_file and cor_file.filename:
                 original_name = secure_filename(cor_file.filename)
                 stored_name = f"ctc_{req_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{original_name}"
-                cor_file.save(os.path.join(UPLOAD_FOLDER, stored_name))
-                req['cor_file'] = stored_name
+                request_folder = os.path.join(REQUEST_UPLOAD_FOLDER, str(req_id))
+                os.makedirs(request_folder, exist_ok=True)
+                cor_file.save(os.path.join(request_folder, stored_name))
+                req['cor_file'] = os.path.join("registrar_requests", str(req_id), stored_name).replace(os.sep, "/")
                 req['cor_original_name'] = original_name
         else:
             req.pop('cor_file', None)
@@ -1739,13 +1775,20 @@ function showReleasedRecords(documentType) {
             if req.get("requested_by") == uname and req.get("status") != "Cancelled"
         ]
         content += '<div class="card"><h2>📋 Aking mga Request</h2>'
+        if cancelled_msg:
+            content += '<p style="color:#087443;font-weight:bold">✅ Nakansela ang pending request.</p>'
+        elif request_error == "cancel_not_allowed":
+            content += '<p style="color:#b42318;font-weight:bold">Hindi na maaaring kanselahin dahil naproseso na ang request.</p>'
+        if request.args.get("edited") == "1":
+            content += '<p style="color:#087443;font-weight:bold">✅ Na-update ang pending request.</p>'
         if not my_requests:
             content += '<p>Wala ka pang naisumiteng request.</p>'
         else:
             content += '''<div class="request-table-scroll" style="overflow-x:auto;-webkit-overflow-scrolling:touch"><table>
-<tr><th>Dokumento</th><th>Petsa at Oras ng Request</th><th>Course / Department</th><th>Detalye</th><th>Purpose</th><th>Status</th></tr>'''
+<tr><th>Dokumento</th><th>Petsa at Oras ng Request</th><th>Course / Department</th><th>Detalye</th><th>Purpose</th><th>Status</th><th>Action</th></tr>'''
             for req in sorted(my_requests, key=lambda item: str(item.get("requested_at", "")), reverse=True):
                 doc_label = doc_labels.get(req.get("document_type"), req.get("document_type", "-"))
+                status = req.get("status", "Pending")
                 if req.get("document_type") == "grades":
                     details = f'{req.get("grade_year", "-")} | {req.get("grade_sem", "-")}'
                 elif req.get("document_type") == "ctc" and req.get("cor_file"):
@@ -1753,13 +1796,19 @@ function showReleasedRecords(documentType) {
                     details = f'<a href="/uploads/{filename}" target="_blank" class="edit-btn">Tingnan ang COR</a>'
                 else:
                     details = "-"
+                if status == "Pending":
+                    actions = f'''<a href="/edit-request/{req["id"]}" class="edit-btn">✏️ Edit</a>
+<form method="POST" action="/cancel-request/{req["id"]}" onsubmit="return confirm('Kanselahin ang request na ito?')" style="display:inline;margin-left:6px"><button type="submit" class="delete-btn">Cancel</button></form>'''
+                else:
+                    actions = "-"
                 content += f'''<tr>
 <td>{html_escape(str(doc_label), quote=True)}</td>
 <td>{html_escape(str(req.get("requested_at", "-")), quote=True)}</td>
 <td>{html_escape(str(req.get("department", req.get("course", "-"))), quote=True)}</td>
 <td>{details}</td>
 <td>{html_escape(str(req.get("purpose", "-")), quote=True)}</td>
-<td>{html_escape(str(req.get("status", "Pending")), quote=True)}</td>
+<td>{html_escape(str(status), quote=True)}</td>
+<td>{actions}</td>
 </tr>'''
             content += '</table></div>'
         content += '</div>'
