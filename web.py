@@ -1292,7 +1292,7 @@ def cancel_request(req_id):
             save_data()
             add_notification(
                 ["admin", "registrar_admin"],
-                f"Kinansela ni {users[uname].get('complete_name', uname)} ang {req.get('document_type', '').upper()} request.",
+                f"{users[uname].get('complete_name', uname)} cancelled their {req.get('document_type', '').upper()} request.",
                 "/registrar"
             )
             return redirect('/registrar?cancelled=1')
@@ -1313,11 +1313,11 @@ def edit_request(req_id):
         return redirect('/registrar?error=edit_not_allowed')
 
     error_messages = {
-        'invalid_document': 'Pumili ng valid na document type.',
-        'missing_purpose': 'Ilagay ang purpose ng request.',
-        'missing_grade_fields': 'Piliin ang year level at semester para sa Copy of Grades.',
-        'missing_cor': 'Kailangan mag-upload ng COR file para sa CTC.',
-        'invalid_cor': 'Hindi suportado ang file. PDF, JPG, JPEG, o PNG lang ang puwede.'
+        'invalid_document': 'Please choose a valid document type.',
+        'missing_purpose': 'Please enter the purpose of the request.',
+        'missing_grade_fields': 'Please select the year level and semester for Copy of Grades.',
+        'missing_cor': 'A COR file is required for a CTC request.',
+        'invalid_cor': 'Unsupported file. Only PDF, JPG, JPEG, and PNG files are allowed.'
     }
     error_notice = error_messages.get(request.args.get('error', ''), '')
 
@@ -1395,7 +1395,7 @@ def edit_request(req_id):
     error_html = f'<p style="color:#b42318;font-weight:700">{error_notice}</p>' if error_notice else ''
     purpose_value = html_escape(str(req.get('purpose', '')))
     content = f'''<div class="card"><h2>✏️ Edit Pending Request #{req_id}</h2>
-<p>Pending requests lang ang puwedeng i-edit.</p>{error_html}
+<p>Only pending requests can be edited.</p>{error_html}
 <form method="POST" action="/edit-request/{req_id}" class="form-group" enctype="multipart/form-data">
 <div class="form-group"><label>Document:</label><select name="document_type" id="editDocType" required onchange="toggleEditRequestFields()">{document_select}</select></div>
 <div id="editGradeFields" class="form-group"><label>Year Level:</label><select name="grade_year">{year_options}</select><label>Semester:</label><select name="grade_sem">{semester_options}</select></div>
@@ -1715,9 +1715,9 @@ function toggleGradeFields() {
             return parsed.astimezone(ZoneInfo("Asia/Manila"))
 
         content += '''<div class="card" id="released-document-records">
-<h2>📚 Mga Na-release na Dokumento</h2>
-<p>Pumili ng uri ng dokumento para makita ang talaan.</p>
-<div role="tablist" aria-label="Uri ng dokumento" style="display:flex;flex-wrap:wrap;gap:8px;margin:14px 0">'''
+<h2>📚 Released Documents</h2>
+<p>Select a document type to view its records.</p>
+<div role="tablist" aria-label="Document type" style="display:flex;flex-wrap:wrap;gap:8px;margin:14px 0">'''
         for index, (document_type, heading) in enumerate(released_doc_types):
             record_count = sum(1 for req in grade_requests if req.get("document_type") == document_type and req.get("released_at"))
             selected_style = "background:#167a64;color:white" if index == 0 else ""
@@ -1731,12 +1731,12 @@ function toggleGradeFields() {
             ]
             released_records.sort(key=lambda req: release_datetime(req) or datetime.min.replace(tzinfo=ZoneInfo("Asia/Manila")), reverse=True)
             panel_style = "" if index == 0 else "display:none;"
-            content += f'<section role="tabpanel" id="released-panel-{document_type}" aria-labelledby="released-tab-{document_type}" style="{panel_style}"><h3>{heading} — Mga Na-release</h3><div class="request-table-scroll" style="overflow-x:auto;-webkit-overflow-scrolling:touch">'
+            content += f'<section role="tabpanel" id="released-panel-{document_type}" aria-labelledby="released-tab-{document_type}" style="{panel_style}"><h3>{heading} — Released</h3><div class="request-table-scroll" style="overflow-x:auto;-webkit-overflow-scrolling:touch">'
             if not released_records:
-                content += '<p>Wala pang naitalang pagkuha ng dokumentong ito.</p>'
+                content += '<p>No pickup has been recorded for this document type yet.</p>'
             else:
                 content += '''<table>
-<tr><th>Petsa at Oras ng Pagkuha</th><th>Pangalan ng Estudyante</th><th>School ID</th><th>Course / Department</th><th>Major</th><th>Detalye</th><th>Purpose</th><th>Inilabas ni</th></tr>'''
+<tr><th>Pickup Date &amp; Time</th><th>Student Name</th><th>School ID</th><th>Course / Department</th><th>Major</th><th>Details</th><th>Purpose</th><th>Released By</th></tr>'''
                 for req in released_records:
                     released_time = release_datetime(req)
                     display_time = released_time.strftime("%B %d, %Y — %I:%M:%S %p (PHT)") if released_time else str(req.get("released_at", "-"))
@@ -1774,18 +1774,18 @@ function showReleasedRecords(documentType) {
             req for req in grade_requests
             if req.get("requested_by") == uname and req.get("status") != "Cancelled"
         ]
-        content += '<div class="card"><h2>📋 Aking mga Request</h2>'
+        content += '<div class="card"><h2>📋 My Requests</h2>'
         if cancelled_msg:
-            content += '<p style="color:#087443;font-weight:bold">✅ Nakansela ang pending request.</p>'
+            content += '<p style="color:#087443;font-weight:bold">✅ Pending request cancelled.</p>'
         elif request_error == "cancel_not_allowed":
-            content += '<p style="color:#b42318;font-weight:bold">Hindi na maaaring kanselahin dahil naproseso na ang request.</p>'
+            content += '<p style="color:#b42318;font-weight:bold">This request can no longer be cancelled because it has been processed.</p>'
         if request.args.get("edited") == "1":
-            content += '<p style="color:#087443;font-weight:bold">✅ Na-update ang pending request.</p>'
+            content += '<p style="color:#087443;font-weight:bold">✅ Pending request updated.</p>'
         if not my_requests:
-            content += '<p>Wala ka pang naisumiteng request.</p>'
+            content += '<p>You have not submitted any requests yet.</p>'
         else:
             content += '''<div class="request-table-scroll" style="overflow-x:auto;-webkit-overflow-scrolling:touch"><table>
-<tr><th>Dokumento</th><th>Petsa at Oras ng Request</th><th>Course / Department</th><th>Detalye</th><th>Purpose</th><th>Status</th><th>Action</th></tr>'''
+<tr><th>Document</th><th>Request Date &amp; Time</th><th>Course / Department</th><th>Details</th><th>Purpose</th><th>Status</th><th>Action</th></tr>'''
             for req in sorted(my_requests, key=lambda item: str(item.get("requested_at", "")), reverse=True):
                 doc_label = doc_labels.get(req.get("document_type"), req.get("document_type", "-"))
                 status = req.get("status", "Pending")
@@ -1793,12 +1793,12 @@ function showReleasedRecords(documentType) {
                     details = f'{req.get("grade_year", "-")} | {req.get("grade_sem", "-")}'
                 elif req.get("document_type") == "ctc" and req.get("cor_file"):
                     filename = html_escape(str(req["cor_file"]), quote=True)
-                    details = f'<a href="/uploads/{filename}" target="_blank" class="edit-btn">Tingnan ang COR</a>'
+                    details = f'<a href="/uploads/{filename}" target="_blank" class="edit-btn">View COR</a>'
                 else:
                     details = "-"
                 if status == "Pending":
                     actions = f'''<a href="/edit-request/{req["id"]}" class="edit-btn">✏️ Edit</a>
-<form method="POST" action="/cancel-request/{req["id"]}" onsubmit="return confirm('Kanselahin ang request na ito?')" style="display:inline;margin-left:6px"><button type="submit" class="delete-btn">Cancel</button></form>'''
+<form method="POST" action="/cancel-request/{req["id"]}" onsubmit="return confirm('Cancel this request?')" style="display:inline;margin-left:6px"><button type="submit" class="delete-btn">Cancel</button></form>'''
                 else:
                     actions = "-"
                 content += f'''<tr>
@@ -1816,10 +1816,10 @@ function showReleasedRecords(documentType) {
     if role != "student":
         content = office_hero(
             "Registrar Office",
-            "Pumili ng card para buksan ang hiwalay na pahina.",
+            "Select a card to open its page.",
             "📄",
             [("▤", "Document Requests", new_request_count, "sage", "/registrar/requests"), ("◷", "Office Announcements", len(anns), "gold", "/registrar/announcements"), ("🗂️", "History Records", history_count, "gold", "/registrar/history")]
-        ) + '<div class="card"><h2>Registrar Office</h2><p>Pindutin ang isa sa mga card sa itaas para buksan ang talaan o impormasyon.</p></div>'
+        ) + '<div class="card"><h2>Registrar Office</h2><p>Select one of the cards above to view records or information.</p></div>'
 
     return dashboard_template(content, "registrar", "Registrar Office")
 
@@ -1855,10 +1855,10 @@ def registrar_section(section):
             ("grades", "📊 Copy of Grades", "Grade-copy requests")
         ]
         visible_requests = grade_requests
-        content += '<section class="card"><h2>📄 Piliin ang uri ng request</h2><div class="office-metrics">'
+        content += '<section class="card"><h2>📄 Select a request type</h2><div class="office-metrics">'
         for doc_type, label, description in doc_groups:
             records = [req for req in visible_requests if req.get("document_type") == doc_type and req.get("status", "Pending") in {"Pending", "Processing", "Ready"}]
-            content += f'''<a class="office-metric office-metric-link" href="/registrar/requests/{doc_type}"><span class="office-metric-icon sage">📄</span><div><div class="office-metric-label">{label}</div><div class="office-metric-value">{len(records)} bagong request</div><small>{description}</small></div></a>'''
+            content += f'''<a class="office-metric office-metric-link" href="/registrar/requests/{doc_type}"><span class="office-metric-icon sage">📄</span><div><div class="office-metric-label">{label}</div><div class="office-metric-value">{len(records)} new requests</div><small>{description}</small></div></a>'''
         content += '</div></section>'
 
     elif section == "history":
@@ -1868,7 +1868,7 @@ def registrar_section(section):
             ("grades", "📊 Copy of Grades")
         ]
         visible_requests = grade_requests
-        content += '<section class="card"><h2>🗂️ Pumili ng history records</h2><div class="office-metrics">'
+        content += '<section class="card"><h2>🗂️ Select a history category</h2><div class="office-metrics">'
         for doc_type, label in doc_groups:
             records = [req for req in visible_requests if req.get("document_type") == doc_type and req.get("status") == "Completed"]
             content += f'''<a class="office-metric office-metric-link" href="/registrar/requests/{doc_type}?view=history"><span class="office-metric-icon gold">🗂️</span><div><div class="office-metric-label">{label}</div><div class="office-metric-value">{len(records)} completed</div><small>Completed requests only</small></div></a>'''
@@ -1906,32 +1906,32 @@ def registrar_document_requests(document_type):
 
     title, document_label = doc_info[document_type]
     visible_requests = [req for req in grade_requests if req.get("document_type") == document_type]
-    status_message = " Na-update ang status ng request." if request.args.get("updated") == "1" else ""
+    status_message = " Request status updated." if request.args.get("updated") == "1" else ""
     show_history = request.args.get("view") == "history"
     if show_history:
         visible_requests = [req for req in visible_requests if req.get("status") == "Completed"]
         section_title = f"🗂️ History Records ({len(visible_requests)})"
-        empty_message = f'Wala pang completed na {html_escape(document_label)} request.'
+        empty_message = f'No completed {html_escape(document_label)} requests yet.'
     else:
         visible_requests = [req for req in visible_requests if req.get("status", "Pending") in {"Pending", "Processing", "Ready"}]
         section_title = f"🆕 Bagong Requests ({len(visible_requests)})"
-        empty_message = f'Wala pang bagong {html_escape(document_label)} request.'
+        empty_message = f'No new {html_escape(document_label)} requests yet.'
     visible_requests.sort(key=lambda item: str(item.get("requested_at", "")), reverse=True)
 
-    content = f'''<section class="card"><a href="/registrar/requests" class="edit-btn" style="display:inline-block;text-decoration:none;margin-bottom:14px">← Back to Document Requests</a><h2>{title}</h2><p>Request at bawat na-release na dokumento ay nakatala sa pahinang ito.</p>'''
+    content = f'''<section class="card"><a href="/registrar/requests" class="edit-btn" style="display:inline-block;text-decoration:none;margin-bottom:14px">← Back to Document Requests</a><h2>{title}</h2><p>Requests and released documents are listed on this page.</p>'''
     if status_message:
         content += f'<p style="color:#087443;font-weight:bold;margin-top:10px">✅{status_message}</p>'
     if request.args.get("released") == "1":
         if request.args.get("notice") == "failed":
-            content += '<p style="color:#8a5b00;font-weight:bold;margin-top:10px">✅ Na-save ang pag-release, pero hindi naipadala ang notification sa estudyante.</p>'
+            content += '<p style="color:#8a5b00;font-weight:bold;margin-top:10px">✅ The release was saved, but the student notification could not be sent.</p>'
         else:
-            content += '<p style="color:#087443;font-weight:bold;margin-top:10px">✅ Matagumpay na naitala ang pag-release at oras nito.</p>'
+            content += '<p style="color:#087443;font-weight:bold;margin-top:10px">✅ Release date and time recorded successfully.</p>'
     elif request.args.get("error") == "release_not_ready":
-        content += '<p style="color:#d32f2f;font-weight:bold;margin-top:10px">⚠️ Gawing Ready muna ang request bago markahang released.</p>'
+        content += '<p style="color:#d32f2f;font-weight:bold;margin-top:10px">⚠️ Set the request to Ready before marking it as released.</p>'
     elif request.args.get("error") == "release_save_failed":
-        content += '<p style="color:#d32f2f;font-weight:bold;margin-top:10px">Hindi na-save ang release record. Tingnan ang Render application logs para sa database error.</p>'
+        content += '<p style="color:#d32f2f;font-weight:bold;margin-top:10px">The release could not be saved. Check the Render application logs for the database error.</p>'
     if users.get(uname, {}).get("role") == "student":
-        content += '<a href="/registrar#requestForm" class="submit-btn" style="display:inline-block;text-decoration:none;margin-top:12px">➕ Gumawa ng Request</a>'
+        content += '<a href="/registrar#requestForm" class="submit-btn" style="display:inline-block;text-decoration:none;margin-top:12px">➕ Create Request</a>'
     def render_request_table(requests_to_show):
         if not requests_to_show:
             return f'<p>{empty_message}</p>'
@@ -2113,9 +2113,9 @@ def guard():
 <button type="submit" class="submit-btn">💾 Save Guard on Duty</button>
 </form></div>'''
         if success: content += '<div class="card scan-feedback scan-success">✅ Guard log successfully recorded. Entry verified.</div>'
-        if error == 'missing_id': content += '<div class="card scan-feedback scan-error">⚠️ Kailangan ang School ID.</div>'
+        if error == 'missing_id': content += '<div class="card scan-feedback scan-error">⚠️ School ID is required.</div>'
         elif error == 'unregistered_id': content += '<div class="card scan-feedback scan-error">❌ The name and School ID do not match a registered student.</div>'
-        elif error == 'missing_vehicle': content += '<div class="card scan-feedback scan-error">⚠️ Kailangan ang vehicle plate/scan value.</div>'
+        elif error == 'missing_vehicle': content += '<div class="card scan-feedback scan-error">⚠️ Vehicle plate or scan value is required.</div>'
         elif error == 'unregistered_driver': content += '<div class="card scan-feedback scan-error">❌ The driver School ID is not registered or approved.</div>'
         elif error == 'missing_manual': content += '<div class="card scan-feedback scan-error">⚠️ Enter a name, School ID, or vehicle plate.</div>'
         elif error == 'missing_guard': content += '<div class="card scan-feedback scan-error">⚠️ Enter the name of the guard on duty first.</div>'
@@ -2135,7 +2135,7 @@ def guard():
 <label>Camera Vehicle QR/Barcode Scanner</label><div id="vehicleQrReader" class="scanner-video"></div><div class="scanner-actions">
 <button type="button" class="edit-btn" onclick="startScanner('vehicle')">📷 Start Scanner</button><button type="button" class="delete-btn" onclick="stopScanner('vehicle')">⏹ Stop</button></div>
 <p id="vehicleScanStatus" class="scan-status">Point the QR code or barcode at the camera.</p></div><div>
-<label>Vehicle Plate / Scan Value</label><input id="vehicleValue" name="vehicle_plate" placeholder="Hal. ABC-1234"><label>School ID ng Driver (optional)</label><input name="school_id" placeholder="Kung registered student">
+<label>Vehicle Plate / Scan Value</label><input id="vehicleValue" name="vehicle_plate" placeholder="e.g. ABC-1234"><label>Driver School ID (optional)</label><input name="school_id" placeholder="If the driver is a registered student">
 <label>Direction</label><select name="direction"><option value="IN" selected>IN</option></select><label>Purpose</label><input name="purpose" placeholder="e.g. Student / Faculty / Delivery / Visitor"><button type="submit" class="submit-btn">🚗 Record Vehicle Entry</button></div></div></form></div>
 <div id="manualScanner" class="scanner-panel" style="display:none"><form method="POST" action="/guard/log"><input type="hidden" name="scan_type" value="manual"><div class="scanner-grid"><div>
 <label>Visitor / Student Name</label><input name="visitor_name" placeholder="Complete name"><label>School ID (optional)</label><input name="school_id" placeholder="School ID"><label>Vehicle Plate (optional)</label><input name="vehicle_plate" placeholder="Vehicle plate"></div><div>
@@ -2176,7 +2176,7 @@ async function startScanner(type){
     if(!window.isSecureContext && location.hostname!=='localhost' && location.hostname!=='127.0.0.1'){
       setScanStatus(type,'⚠️ HTTPS is required to use the camera on a network address.','error'); return;
     }
-    setScanStatus(type,'📷 Humihingi ng pahintulot sa camera...');
+    setScanStatus(type,'📷 Requesting camera permission...');
     const scanner=new Html5Qrcode(readerId);
     qrScanners[type]=scanner;
     const config={fps:10,qrbox:{width:250,height:250},aspectRatio:1.777778,rememberLastUsedCamera:true};
@@ -2187,7 +2187,7 @@ async function startScanner(type){
       const value=(decodedText||'').trim();
       if(!value) return;
       field.value=type==='vehicle'?value.toUpperCase():value;
-      setScanStatus(type,'✅ Na-scan: '+value);
+      setScanStatus(type,'✅ Scanned: '+value);
       await stopScanner(type);
       if(type==='id'){
         setScanStatus(type,'⏳ Verifying name and School ID...');
@@ -2200,7 +2200,7 @@ async function startScanner(type){
     let message='⚠️ The camera cannot be accessed.';
     if(err&&err.name==='NotAllowedError') message='⚠️ Camera access was denied. Allow it in your browser settings.';
     else if(err&&err.name==='NotFoundError') message='⚠️ No camera was found on this device.';
-    else if(err&&err.name==='NotReadableError') message='⚠️ Ginagamit ng ibang app ang camera. Isara muna ito.';
+    else if(err&&err.name==='NotReadableError') message='⚠️ Another app is using the camera. Close it first.';
     else if(err) message='⚠️ Scanner error: '+(err.message||err);
     setScanStatus(type,message,'error');
   }
@@ -2313,10 +2313,10 @@ def maintenance():
     if role == "student":
         content += """<div class="card"><h2>🔧 Report a Maintenance Issue</h2>
 <form method="POST" enctype="multipart/form-data" class="form-group">
-<div class="form-group"><label>*Description - Anong sira</label><textarea name="description" rows="3" required></textarea></div>
-<div class="form-group"><label>*Location - Saan</label><input type="text" name="location" required></div>
-<div class="form-group"><label>*Reported by - Sino ang nagreport</label><input type="text" name="reported_by" required></div>
-<div class="form-group"><label>Larawan ng sira (PNG/JPG, hanggang 5 MB)</label><input type="file" name="maintenance_image" accept="image/png,image/jpeg,.png,.jpg,.jpeg"></div>
+<div class="form-group"><label>*Description</label><textarea name="description" rows="3" required></textarea></div>
+<div class="form-group"><label>*Location</label><input type="text" name="location" required></div>
+<div class="form-group"><label>*Reported by</label><input type="text" name="reported_by" required></div>
+<div class="form-group"><label>Issue image (PNG/JPG, up to 5 MB)</label><input type="file" name="maintenance_image" accept="image/png,image/jpeg,.png,.jpg,.jpeg"></div>
 <button type="submit" class="submit-btn">Submit Report</button>
 </form></div>"""
 
@@ -2352,7 +2352,7 @@ def maintenance():
             image_html = ""
             image_name = report.get("image", "")
             if image_name:
-                image_html = f'<p><b>Larawan:</b><br><a href="/uploads/{html_escape(image_name)}" target="_blank"><img src="/uploads/{html_escape(image_name)}" alt="Larawan ng maintenance issue" style="display:block;max-width:min(100%,420px);max-height:280px;object-fit:contain;margin-top:8px;border-radius:10px;border:1px solid #dce6e3"></a></p>'
+                image_html = f'<p><b>Image:</b><br><a href="/uploads/{html_escape(image_name)}" target="_blank"><img src="/uploads/{html_escape(image_name)}" alt="Maintenance issue image" style="display:block;max-width:min(100%,420px);max-height:280px;object-fit:contain;margin-top:8px;border-radius:10px;border:1px solid #dce6e3"></a></p>'
 
             content += f"""<div class="report-item">
 <p><b>Issue:</b> {report.get('description', '')}</p>
@@ -2386,7 +2386,7 @@ def update_maintenance(report_id, status):
             if requested_by in users:
                 add_notification(
                     requested_by,
-                    f"🔧 Maintenance report mo ay {status.upper()} na.",
+                    f"🔧 Your maintenance report status is now {status.upper()}.",
                     "/maintenance",
                     "maintenance_admin"
                 )
@@ -2693,9 +2693,8 @@ def notifications_page():
     if not uname:
         return redirect('/')
 
-    # Visiting the notifications inbox marks all notifications as seen and
-    # refreshes the sidebar unread badge immediately.
-    mark_notifications_read(uname)
+    # Keep notifications unread while viewing the inbox; opening a specific
+    # notification marks only that item as read in open_notification().
     items = deduplicate_legacy_notifications(notifications.get(uname, []))
     content = '<div class="card"><h2>🔔 Notifications</h2>'
 
