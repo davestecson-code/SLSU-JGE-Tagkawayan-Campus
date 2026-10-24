@@ -2,6 +2,7 @@ from flask import Flask, request, render_template_string, redirect, send_from_di
 from werkzeug.utils import secure_filename
 import os, json, re, subprocess, threading
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from html import escape as html_escape
 
 app = Flask(__name__)
@@ -78,6 +79,10 @@ YEAR_LEVELS = ["1st Year", "2nd Year", "3rd Year", "4th Year"]
 
 def _database_url():
     url = os.environ.get("DATABASE_URL", "").strip()
+    # Render environment values are sometimes pasted with surrounding quotes.
+    # Remove only a matching pair so psycopg2 receives a valid PostgreSQL URI.
+    if len(url) >= 2 and url[0] == url[-1] and url[0] in {"'", '"'}:
+        url = url[1:-1].strip()
     if url.startswith("postgres://"):
         url = "postgresql://" + url[len("postgres://"):]
     return url
@@ -483,8 +488,8 @@ body{{min-height:100vh;display:flex;background:linear-gradient(135deg,rgba(0,135
 .profile-btn{{background:#fff;color:#176c63}}
 .logout-btn{{background:#dff8ed;color:#176c63}}
 .profile-btn:hover,.logout-btn:hover{{filter:saturate(1.15)}}
-.main{{flex:1;min-width:0;padding:8px 14px 20px;overflow-y:auto}}
-.header{{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;color:#f5fffb;text-shadow:0 1px 4px rgba(0,48,43,.72)}}
+.main{{flex:1;min-width:0;padding:0 14px 20px;overflow-y:auto}}
+.header{{display:flex;align-items:center;justify-content:space-between;margin:0 0 18px 56px;color:#f5fffb;text-shadow:0 1px 4px rgba(0,48,43,.72)}}
 .header img{{width:42px;height:42px;object-fit:cover;background:#fff;border-radius:13px;padding:2px;box-shadow:0 2px 10px #193f4012}}
 .header-text h1{{font-size:24px;font-weight:800;color:#ffffff}}
 .header-text p{{font-size:12px;color:#e2fff6;margin-top:4px}}
@@ -494,7 +499,6 @@ body{{min-height:100vh;display:flex;background:linear-gradient(135deg,rgba(0,135
 .header-user-role{{font-size:10px;color:#d8fff3;margin-top:2px}}
 .card{{background:rgba(255,255,255,.91);border:1px solid #d9f0e9;border-radius:17px;padding:20px;margin-bottom:16px;box-shadow:0 5px 18px rgba(6,83,75,.09)}}
 .card h2{{font-size:17px;color:#164d4b;margin-bottom:10px;font-weight:700}}
-.dashboard-crumb{{font-size:11px;color:#effff9;text-shadow:0 1px 4px rgba(0,48,43,.8);margin:0 0 9px 56px;min-height:44px;display:flex;align-items:center}}
 .dashboard-hero{{position:relative;overflow:hidden;background:linear-gradient(115deg,#087d72,#16c6a7);border-radius:20px;padding:27px 32px;color:white;margin-bottom:20px;min-height:144px}}
 .dashboard-hero:after{{content:' ';position:absolute;width:190px;height:190px;border-radius:50%;right:3%;top:-88px;background:#ffffff12;box-shadow:75px 125px 0 18px #ffffff0d}}
 .hero-date{{font-size:10px;letter-spacing:1px;color:#d5fff4}}
@@ -520,8 +524,10 @@ body{{min-height:100vh;display:flex;background:linear-gradient(135deg,rgba(0,135
 .office-kicker{{font-size:9px;letter-spacing:1.2px;color:#d7ead9;font-weight:700}}
 .office-hero h2{{font-size:21px;color:#fff;margin:6px 0 4px}}
 .office-hero p{{font-size:11px;color:#e0eee4}}
-.office-metrics{{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:17px}}
+.office-metrics{{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:17px}}
 .office-metric{{display:flex;align-items:center;gap:11px;background:rgba(255,255,255,.91);border:1px solid #d9f0e9;border-radius:14px;padding:13px 16px;box-shadow:0 5px 18px rgba(6,83,75,.08)}}
+.office-metric-link{{color:inherit;text-decoration:none;cursor:pointer;transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease}}
+.office-metric-link:hover,.office-metric-link:focus-visible{{transform:translateY(-2px);border-color:#11c6a6;box-shadow:0 8px 22px rgba(6,83,75,.16);outline:2px solid #11c6a6;outline-offset:2px}}
 .office-metric-icon{{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:#c8f5e6;color:#087c72;font-size:15px;font-weight:700}}
 .office-metric-icon.gold{{background:#e4faee;color:#167a68}}
 .office-metric-icon.sage{{background:#c8f5e6;color:#087c72}}
@@ -538,10 +544,10 @@ body{{min-height:100vh;display:flex;background:linear-gradient(135deg,rgba(0,135
 .dashboard-table th,.dashboard-table td{{padding:10px 9px}}
 .table-status{{display:inline-block;padding:5px 9px;border-radius:20px;background:#c9f3e3;color:#087c72;font-weight:700;font-size:10px}}
 @media(max-width:1050px){{.sidebar{{width:218px}}.dashboard-stats{{grid-template-columns:repeat(2,minmax(0,1fr))}}.dashboard-columns{{grid-template-columns:1fr}}}}
-@media(max-width:680px){{body{{display:block}}.sidebar{{width:min(84vw,290px);height:auto;min-height:0;position:fixed;top:68px;bottom:0;left:0;padding:16px;display:flex;flex-direction:column;flex-wrap:nowrap;border-right:1px solid #eaf0ef;border-bottom:0;transform:translateX(-105%);transition:transform .22s ease}}.sidebar.is-open{{transform:translateX(0)}}.sidebar-brand{{width:100%;height:48px;margin:0;padding-bottom:8px}}.menu-section-label{{display:none}}.sidebar a{{flex:0 0 auto}}.menu-btn{{padding:10px;font-size:11px}}.main{{padding:8px 14px 18px}}.header{{margin-bottom:16px}}.header-text h1{{font-size:19px}}.header-user-role{{display:none}}.dashboard-hero{{padding:22px 19px}}.hero-title{{font-size:21px;max-width:75%}}.hero-link{{position:relative;right:auto;top:auto;transform:none;display:inline-block;margin-top:15px}}.dashboard-stats{{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}}.stat-card{{padding:13px}}.stat-number{{font-size:24px}}}}
+@media(max-width:680px){{body{{display:block}}.sidebar{{width:min(84vw,290px);height:auto;min-height:0;position:fixed;top:68px;bottom:0;left:0;padding:16px;display:flex;flex-direction:column;flex-wrap:nowrap;border-right:1px solid #eaf0ef;border-bottom:0;transform:translateX(-105%);transition:transform .22s ease}}.sidebar.is-open{{transform:translateX(0)}}.sidebar-brand{{width:100%;height:48px;margin:0;padding-bottom:8px}}.menu-section-label{{display:none}}.sidebar a{{flex:0 0 auto}}.menu-btn{{padding:10px;font-size:11px}}.main{{padding:0 14px 18px}}.header{{margin-bottom:16px}}.header-text h1{{font-size:19px}}.header-user-role{{display:none}}.dashboard-hero{{padding:22px 19px}}.hero-title{{font-size:21px;max-width:75%}}.hero-link{{position:relative;right:auto;top:auto;transform:none;display:inline-block;margin-top:15px}}.dashboard-stats{{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}}.stat-card{{padding:13px}}.stat-number{{font-size:24px}}}}
 @media(max-width:1050px){{.sidebar{{width:252px}}.dashboard-stats{{grid-template-columns:repeat(2,minmax(0,1fr))}}.dashboard-columns{{grid-template-columns:1fr}}}}
-@media(max-width:680px){{body{{display:block}}.sidebar{{width:min(84vw,290px);height:auto;min-height:0;position:fixed;top:68px;bottom:0;left:0;padding:16px;display:flex;flex-direction:column;flex-wrap:nowrap;border-right:1px solid #eaf0ef;border-bottom:0;transform:translateX(-105%);transition:transform .22s ease}}.sidebar.is-open{{transform:translateX(0)}}.sidebar-brand{{width:100%;height:62px;margin:0;padding-bottom:8px}}.menu-section-label{{display:none}}.sidebar-footer{{padding-top:12px}}.footer-btn{{font-size:11px}}.sidebar a{{flex:0 0 auto}}.menu-btn{{padding:10px;font-size:11px}}.main{{padding:8px 14px 18px}}.header{{margin-bottom:16px}}.header-text h1{{font-size:19px}}.header-user-role{{display:none}}.dashboard-hero{{padding:22px 19px}}.hero-title{{font-size:21px;max-width:75%}}.hero-link{{position:relative;right:auto;top:auto;transform:none;display:inline-block;margin-top:15px}}.dashboard-stats{{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}}.stat-card{{padding:13px}}.stat-number{{font-size:24px}}}}
-@media(max-width:680px){{body{{display:block}}.sidebar{{width:min(84vw,290px);height:auto;min-height:0;position:fixed;top:68px;bottom:0;left:0;padding:16px;display:flex;flex-direction:column;flex-wrap:nowrap;border-right:1px solid #eaf0ef;border-bottom:0;transform:translateX(-105%);transition:transform .22s ease}}.sidebar.is-open{{transform:translateX(0)}}.sidebar-brand{{width:100%;height:48px;margin:0;padding-bottom:8px}}.menu-section-label{{display:none}}.sidebar-footer{{padding-top:12px}}.footer-btn{{font-size:11px}}.sidebar a{{flex:0 0 auto}}.menu-btn{{padding:10px;font-size:11px}}.main{{padding:8px 14px 18px}}.header{{margin-bottom:16px}}.header-text h1{{font-size:19px}}.header-user-role{{display:none}}.dashboard-hero{{padding:22px 19px}}.hero-title{{font-size:21px;max-width:75%}}.hero-link{{position:relative;right:auto;top:auto;transform:none;display:inline-block;margin-top:15px}}.dashboard-stats{{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}}.stat-card{{padding:13px}}.stat-number{{font-size:24px}}}}
+@media(max-width:680px){{body{{display:block}}.sidebar{{width:min(84vw,290px);height:auto;min-height:0;position:fixed;top:68px;bottom:0;left:0;padding:16px;display:flex;flex-direction:column;flex-wrap:nowrap;border-right:1px solid #eaf0ef;border-bottom:0;transform:translateX(-105%);transition:transform .22s ease}}.sidebar.is-open{{transform:translateX(0)}}.sidebar-brand{{width:100%;height:62px;margin:0;padding-bottom:8px}}.menu-section-label{{display:none}}.sidebar-footer{{padding-top:12px}}.footer-btn{{font-size:11px}}.sidebar a{{flex:0 0 auto}}.menu-btn{{padding:10px;font-size:11px}}.main{{padding:0 14px 18px}}.header{{margin-bottom:16px}}.header-text h1{{font-size:19px}}.header-user-role{{display:none}}.dashboard-hero{{padding:22px 19px}}.hero-title{{font-size:21px;max-width:75%}}.hero-link{{position:relative;right:auto;top:auto;transform:none;display:inline-block;margin-top:15px}}.dashboard-stats{{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}}.stat-card{{padding:13px}}.stat-number{{font-size:24px}}}}
+@media(max-width:680px){{body{{display:block}}.sidebar{{width:min(84vw,290px);height:auto;min-height:0;position:fixed;top:68px;bottom:0;left:0;padding:16px;display:flex;flex-direction:column;flex-wrap:nowrap;border-right:1px solid #eaf0ef;border-bottom:0;transform:translateX(-105%);transition:transform .22s ease}}.sidebar.is-open{{transform:translateX(0)}}.sidebar-brand{{width:100%;height:48px;margin:0;padding-bottom:8px}}.menu-section-label{{display:none}}.sidebar-footer{{padding-top:12px}}.footer-btn{{font-size:11px}}.sidebar a{{flex:0 0 auto}}.menu-btn{{padding:10px;font-size:11px}}.main{{padding:0 14px 18px}}.header{{margin-bottom:16px}}.header-text h1{{font-size:19px}}.header-user-role{{display:none}}.dashboard-hero{{padding:22px 19px}}.hero-title{{font-size:21px;max-width:75%}}.hero-link{{position:relative;right:auto;top:auto;transform:none;display:inline-block;margin-top:15px}}.dashboard-stats{{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}}.stat-card{{padding:13px}}.stat-number{{font-size:24px}}}}
 .card h2{{font-size:18px;color:#164d4b;margin-bottom:15px;font-weight:700}}
 .logout{{background:#dff8ed!important;color:#176c63!important;margin-top:20px}}
 a{{text-decoration:none}}
@@ -591,9 +597,8 @@ th{{background:linear-gradient(90deg,#087c72,#11c6a6);color:#fff}}
  @media(max-width:680px){{
    html,body{{width:100%;min-height:100%;overflow-x:hidden}}
    body{{display:block;background-attachment:scroll}}
-   .main{{display:block;width:100%;max-width:100%;min-width:0;min-height:100vh;margin:0;padding:8px 12px 20px;overflow:visible}}
-   .dashboard-crumb{{margin-left:54px;min-height:50px;padding-right:4px;line-height:1.4}}
-   .header{{width:100%;min-width:0;align-items:flex-start;gap:8px;margin:0 0 14px}}
+   .main{{display:block;width:100%;max-width:100%;min-width:0;min-height:100vh;margin:0;padding:0 12px 20px;overflow:visible}}
+   .header{{width:calc(100% - 54px);min-width:0;align-items:flex-start;gap:8px;margin:0 0 14px 54px}}
    .header>div:first-child{{min-width:0;flex:1;gap:8px!important}}
    .header img{{width:36px;height:36px;flex:none}}
    .header-text{{min-width:0}}
@@ -641,7 +646,6 @@ th{{background:linear-gradient(90deg,#087c72,#11c6a6);color:#fff}}
 {get_sidebar(active_page)}
 </div>
 <div class="main">
-<div class="dashboard-crumb">Pages&nbsp; / &nbsp;<b>{page_title}</b></div>
 <div class="header">
 <div style="display:flex;align-items:center;gap:12px"><img src="/logo.png" alt="SLSU Logo"><div class="header-text"><h1>{page_title}</h1><p>Welcome, {user_data.get('complete_name', 'Guest')}!</p></div></div>
 <div class="header-user"><div class="header-avatar">{(user_data.get('complete_name') or 'U')[:2].upper()}</div><div><div class="header-user-name">{user_data.get('complete_name', 'User')}</div><div class="header-user-role">{user_data.get('role', '').replace('_', ' ').title()}</div></div></div>
@@ -713,8 +717,11 @@ document.getElementById('menuDelete').onclick = function(e) {{
 
 def office_hero(title, subtitle, icon, metrics):
     html = f'''<section class="office-hero"><div class="office-hero-brand"><img src="/logo.png" alt="SLSU logo"></div><div class="office-hero-copy"><span class="office-kicker">SLSU-JGE · OFFICE WORKSPACE</span><h2>{icon} {title}</h2><p>{subtitle}</p></div></section><div class="office-metrics">'''
-    for metric_icon, label, value, tone in metrics:
-        html += f'''<div class="office-metric"><span class="office-metric-icon {tone}">{metric_icon}</span><div><div class="office-metric-label">{label}</div><div class="office-metric-value">{value}</div></div></div>'''
+    for metric in metrics:
+        metric_icon, label, value, tone = metric[:4]
+        destination = metric[4] if len(metric) > 4 else ""
+        tag, close_tag = (f'<a class="office-metric office-metric-link" href="{destination}" aria-label="Open {label}">', '</a>') if destination else ('<div class="office-metric">', '</div>')
+        html += f'''{tag}<span class="office-metric-icon {tone}">{metric_icon}</span><div><div class="office-metric-label">{label}</div><div class="office-metric-value">{value}</div></div>{close_tag}'''
     return html + '</div>'
 
 def render_login(error_msg=None, success_msg=None):
@@ -1147,16 +1154,17 @@ def update_request(req_id, status):
     if not can_view_requests():
         return redirect('/registrar')
 
-    if status not in ["Pending", "Processing", "Ready", "Completed"]:
-        return redirect('/registrar')
+    if status not in ["Pending", "Processing", "Ready"]:
+        return redirect('/registrar/requests')
 
     for req in grade_requests:
         if req["id"] == req_id:
+            return_to = f'/registrar/requests/{req.get("document_type", "ctc")}'
             if req.get("status", "Pending") == "Cancelled":
-                return redirect('/registrar')
+                return redirect(return_to)
             previous_status = req.get("status", "Pending")
             if previous_status == status:
-                break
+                return redirect(f'{return_to}?updated=1')
             req["status"] = status
             save_data()
 
@@ -1169,9 +1177,61 @@ def update_request(req_id, status):
                     "registrar_admin",
                     f"request-{req_id}-status-{status}"
                 )
-            break
+            return redirect(f'{return_to}?updated=1')
 
-    return redirect('/registrar')
+    return redirect('/registrar/requests')
+
+
+@app.route('/release-request/<int:req_id>', methods=['POST'])
+def release_request(req_id):
+    if not can_view_requests():
+        return redirect('/registrar')
+
+    uname = get_current_user()
+    for req in grade_requests:
+        if str(req.get("id")) != str(req_id):
+            continue
+        document_type = req.get("document_type", "ctc")
+        if req.get("status", "Pending") != "Ready":
+            return redirect(f'/registrar/requests/{document_type}?error=release_not_ready')
+
+        previous_status = req.get("status", "Pending")
+        previous_released_at = req.get("released_at")
+        previous_released_by = req.get("released_by")
+        req["status"] = "Completed"
+        req["released_at"] = datetime.now(ZoneInfo("Asia/Manila")).isoformat(timespec="seconds")
+        req["released_by"] = users.get(uname, {}).get("complete_name", uname)
+        try:
+            save_data()
+        except Exception as error:
+            req["status"] = previous_status
+            if previous_released_at is None:
+                req.pop("released_at", None)
+            else:
+                req["released_at"] = previous_released_at
+            if previous_released_by is None:
+                req.pop("released_by", None)
+            else:
+                req["released_by"] = previous_released_by
+            print(f"Failed to save released document request #{req_id}: {error}")
+            return redirect(f'/registrar/requests/{document_type}?error=release_save_failed')
+
+        requested_by = req.get("requested_by")
+        if requested_by in users:
+            try:
+                add_notification(
+                    requested_by,
+                    f"Your {req.get('document_type', '').upper()} document (Request #{req_id}) was released by the Registrar.",
+                    "/registrar",
+                    "registrar_admin",
+                    f"request-{req_id}-released"
+                )
+            except Exception as error:
+                print(f"Failed to notify requester for released request #{req_id}: {error}")
+                return redirect(f'/registrar/requests/{document_type}?view=history&released=1&notice=failed')
+        return redirect(f'/registrar/requests/{document_type}?view=history&released=1')
+
+    return redirect('/registrar/requests')
 
 
 @app.route('/delete-request/<int:req_id>')
@@ -1352,8 +1412,12 @@ def registrar():
     success_msg = request.args.get('success') == '1'
     request_error = request.args.get('error', '')
     cancelled_msg = request.args.get('cancelled') == '1'
+    released_msg = request.args.get('released') == '1'
 
     anns = announcements["registrar"]
+    visible_for_history = grade_requests if can_see_all else [req for req in grade_requests if req.get("requested_by") == uname]
+    new_request_count = sum(1 for req in visible_for_history if req.get("status", "Pending") in {"Pending", "Processing", "Ready"})
+    history_count = sum(1 for req in visible_for_history if req.get("status") == "Completed")
     department_value = html_escape(str(user_data.get("course") or "-"), quote=True)
     saved_major = str(user_data.get("major") or "").strip()
     if saved_major in {"-", "N/A", "None"}:
@@ -1368,7 +1432,12 @@ def registrar():
             major_option_html = ''.join(f'<option value="{html_escape(option, quote=True)}">{html_escape(option)}</option>' for option in major_options)
             major_field_html = f'<select name="major" required style="background:#e7f8f0;color:#17675e"><option value="">-- Select Major --</option>{major_option_html}</select>'
         major_group_html = f'<div class="form-group"><label>Major:</label>{major_field_html}</div>'
-    content = office_hero("Registrar Office", "Document services, student requests, and registrar announcements.", "📄", [("▤", "Document Requests", len(grade_requests), "sage"), ("◷", "Office Announcements", len(anns), "gold"), ("✓", "Accepted Formats", "PDF · JPG · PNG", "")]) + '<div class="card"><h2>📢 Announcements</h2>' 
+    registrar_metrics = (
+        [("▤", "Document Requests", new_request_count, "sage", "/registrar/requests"), ("◷", "Office Announcements", len(anns), "gold", "/registrar/announcements"), ("🗂️", "History Records", history_count, "gold", "/registrar/history")]
+        if can_see_all else
+        [("📄", "Request a Document", "Open form", "sage", "/registrar#requestForm"), ("◷", "Office Announcements", len(anns), "gold", "/registrar/announcements")]
+    )
+    content = office_hero("Registrar Office", "Document services, student requests, and registrar announcements.", "📄", registrar_metrics) + '<div class="card"><h2>📢 Announcements</h2>'
 
     if can_edit:
         content += '''
@@ -1518,7 +1587,12 @@ function toggleGradeFields() {
     }
 
     if can_see_all:
-        content += '<div class="card"><h2>📋 All Requests (Admin Only)</h2><div class="request-table-scroll" style="overflow-x:auto;-webkit-overflow-scrolling:touch">'
+        content += '<div class="card"><h2>📋 All Requests</h2>'
+        if released_msg:
+            content += '<p style="color:#087443;font-weight:bold;">✅ Document release recorded with the current date, time, and registrar name.</p>'
+        elif request_error == "release_not_ready":
+            content += '<p style="color:#d32f2f;font-weight:bold;">⚠️ Mark the request as Ready before recording its release.</p>'
+        content += '<div class="request-table-scroll" style="overflow-x:auto;-webkit-overflow-scrolling:touch">'
 
         if not grade_requests:
             content += '<p>No requests received.</p>'
@@ -1554,6 +1628,17 @@ function toggleGradeFields() {
                     "Completed": "status-done"
                 }.get(req["status"], "")
 
+                if req.get("status", "Pending") == "Pending":
+                    request_actions = f'<a href="/update-request/{req["id"]}/Processing" class="edit-btn">Processing</a> <a href="/update-request/{req["id"]}/Ready" class="approve-btn">Ready</a>'
+                elif req.get("status") == "Processing":
+                    request_actions = f'<a href="/update-request/{req["id"]}/Ready" class="approve-btn">Ready</a>'
+                elif req.get("status") == "Ready":
+                    request_actions = f'<form method="POST" action="/release-request/{req["id"]}" style="display:inline" onsubmit="return confirm(\'Record this document as picked up?\')"><button type="submit" class="submit-btn">📦 Mark as Released</button></form>'
+                elif req.get("status") == "Completed":
+                    request_actions = f'<span>Released: {html_escape(str(req.get("released_at", "")))}</span>' if req.get("released_at") else '<span>Completed</span>'
+                else:
+                    request_actions = ''
+
                 content += f'''<tr>
 <td>{req["student_name"]}</td>
 <td>{req.get("requested_at", "-")}</td>
@@ -1565,9 +1650,7 @@ function toggleGradeFields() {
 <td>{req["purpose"]}</td>
 <td class="{status_class}">{req["status"]}</td>
 <td>
-<a href="/update-request/{req['id']}/Processing" class="edit-btn">Processing</a>
-<a href="/update-request/{req['id']}/Ready" class="approve-btn">Ready</a>
-<a href="/update-request/{req['id']}/Completed" class="submit-btn">Done</a>
+{request_actions}
 <a href="/delete-request/{req['id']}" class="delete-btn" onclick="return confirm('Are you sure you want to delete this?')">🗑️</a>
 </td>
 </tr>'''
@@ -1576,77 +1659,267 @@ function toggleGradeFields() {
 
         content += '</div>'
 
-    else:
-        content += '<div class="card"><h2>📋 My Requests</h2><div class="request-table-scroll" style="overflow-x:auto;-webkit-overflow-scrolling:touch">'
-        if cancelled_msg:
-            content += '<p style="color:#b42318;font-weight:bold;">✅ Your request has been cancelled.</p>'
-        elif request_error == "cancel_not_allowed":
-            content += '<p style="color:#d32f2f;font-weight:bold;">This request can no longer be cancelled because it has been processed.</p>'
+        released_doc_types = [
+            ("ctc", "📋 CTC — Certified True Copy"),
+            ("tor", "📑 TOR — Transcript of Records"),
+            ("grades", "📊 Copy of Grades")
+        ]
 
-        if request.args.get('edited') == '1':
-            content += '<p style="color:#087443;font-weight:bold;">✅ Your pending request has been updated.</p>'
-        my_reqs = [r for r in grade_requests if r["requested_by"] == uname]
+        def release_datetime(req):
+            raw_value = str(req.get("released_at", ""))
+            try:
+                parsed = datetime.fromisoformat(raw_value)
+            except ValueError:
+                try:
+                    parsed = datetime.strptime(raw_value, "%Y-%m-%d %I:%M:%S %p").replace(tzinfo=ZoneInfo("Asia/Manila"))
+                except ValueError:
+                    return None
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=ZoneInfo("Asia/Manila"))
+            return parsed.astimezone(ZoneInfo("Asia/Manila"))
 
-        if not my_reqs:
-            content += '<p>You have no requests yet.</p>'
-        else:
-            major_header = '<th>Major</th>' if major_options else ''
-            content += f'''<table>
-<tr>
-<th>Document</th>
-<th>Request Date &amp; Time</th>
-<th>Department / Course</th>
-{major_header}
-<th>Details</th>
-<th>Purpose</th>
-<th>Status</th>
-<th>Action</th>
-</tr>'''
-
-            for req in reversed(my_reqs):
-                doc_label = doc_labels.get(req["document_type"], req["document_type"])
-
-                if req["document_type"] == "grades":
-                    details = f"{req.get('grade_year', '-')} | {req.get('grade_sem', '-')}"
-                elif req["document_type"] == "ctc" and req.get("cor_file"):
-                    details = f'<a href="/uploads/{req["cor_file"]}" target="_blank" class="edit-btn">📎 View COR</a>'
-                else:
-                    details = "-"
-
-                status_class = {
-                    "Pending": "status-pending",
-                    "Processing": "status-processing",
-                    "Ready": "status-done",
-                    "Completed": "status-done",
-                    "Cancelled": "status-cancelled"
-                }.get(req["status"], "")
-
-                major_cell = f'<td>{req.get("major", "-") or "-"}</td>' if major_options else ''
-                edit_action = (
-                    f'<a href="/edit-request/{req["id"]}" class="edit-btn">✏️ Edit</a> '
-                    if req.get("status", "Pending") == "Pending" else ''
-                )
-                cancel_action = (
-                    f'<form method="POST" action="/cancel-request/{req["id"]}" onsubmit="return confirm(\'Cancel this document request?\')" style="margin:0"><button type="submit" class="delete-btn">Cancel</button></form>'
-                    if req.get("status", "Pending") == "Pending" else '-'
-                )
-
-                content += f'''<tr>
-<td>{doc_label}</td>
-<td>{req.get("requested_at", "-")}</td>
-<td>{req.get("department", req.get("course", "-"))}</td>
-{major_cell}
-<td>{details}</td>
-<td>{req["purpose"]}</td>
-<td class="{status_class}">{req["status"]}</td>
-<td>{edit_action}{cancel_action}</td>
-</tr>'''
-
-            content += '</table></div>'
-
+        content += '''<div class="card" id="released-document-records">
+<h2>📚 Mga Na-release na Dokumento</h2>
+<p>Pumili ng uri ng dokumento para makita ang talaan.</p>
+<div role="tablist" aria-label="Uri ng dokumento" style="display:flex;flex-wrap:wrap;gap:8px;margin:14px 0">'''
+        for index, (document_type, heading) in enumerate(released_doc_types):
+            record_count = sum(1 for req in grade_requests if req.get("document_type") == document_type and req.get("released_at"))
+            selected_style = "background:#167a64;color:white" if index == 0 else ""
+            content += f'<button type="button" role="tab" aria-selected="{"true" if index == 0 else "false"}" aria-controls="released-panel-{document_type}" id="released-tab-{document_type}" onclick="showReleasedRecords(\'{document_type}\')" style="{selected_style}">{heading} <span>({record_count})</span></button>'
         content += '</div>'
 
+        for index, (document_type, heading) in enumerate(released_doc_types):
+            released_records = [
+                req for req in grade_requests
+                if req.get("document_type") == document_type and req.get("released_at")
+            ]
+            released_records.sort(key=lambda req: release_datetime(req) or datetime.min.replace(tzinfo=ZoneInfo("Asia/Manila")), reverse=True)
+            panel_style = "" if index == 0 else "display:none;"
+            content += f'<section role="tabpanel" id="released-panel-{document_type}" aria-labelledby="released-tab-{document_type}" style="{panel_style}"><h3>{heading} — Mga Na-release</h3><div class="request-table-scroll" style="overflow-x:auto;-webkit-overflow-scrolling:touch">'
+            if not released_records:
+                content += '<p>Wala pang naitalang pagkuha ng dokumentong ito.</p>'
+            else:
+                content += '''<table>
+<tr><th>Petsa at Oras ng Pagkuha</th><th>Pangalan ng Estudyante</th><th>School ID</th><th>Course / Department</th><th>Major</th><th>Detalye</th><th>Purpose</th><th>Inilabas ni</th></tr>'''
+                for req in released_records:
+                    released_time = release_datetime(req)
+                    display_time = released_time.strftime("%B %d, %Y — %I:%M:%S %p (PHT)") if released_time else str(req.get("released_at", "-"))
+                    if document_type == "grades":
+                        details = f'{req.get("grade_year", "-")} | {req.get("grade_sem", "-")}'
+                    elif document_type == "ctc" and req.get("cor_file"):
+                        details = "COR submitted"
+                    else:
+                        details = "-"
+                    cells = [display_time, req.get("student_name", "-"), req.get("school_id", "-"), req.get("department", req.get("course", "-")), req.get("major", "-") or "-", details, req.get("purpose", "-"), req.get("released_by", "-")]
+                    content += '<tr>' + ''.join(f'<td>{html_escape(str(value), quote=True)}</td>' for value in cells) + '</tr>'
+                content += '</table>'
+            content += '</div></section>'
+        content += '''<script>
+function showReleasedRecords(documentType) {
+  document.querySelectorAll('[id^="released-panel-"]').forEach(panel => panel.style.display = 'none');
+  document.querySelectorAll('[id^="released-tab-"]').forEach(tab => {
+    tab.setAttribute('aria-selected', 'false');
+    tab.style.background = '';
+    tab.style.color = '';
+  });
+  const panel = document.getElementById('released-panel-' + documentType);
+  const tab = document.getElementById('released-tab-' + documentType);
+  if (panel && tab) {
+    panel.style.display = 'block';
+    tab.setAttribute('aria-selected', 'true');
+    tab.style.background = '#167a64';
+    tab.style.color = 'white';
+  }
+}
+</script></div>'''
+
+    else:
+        my_requests = [
+            req for req in grade_requests
+            if req.get("requested_by") == uname and req.get("status") != "Cancelled"
+        ]
+        content += '<div class="card"><h2>📋 Aking mga Request</h2>'
+        if not my_requests:
+            content += '<p>Wala ka pang naisumiteng request.</p>'
+        else:
+            content += '''<div class="request-table-scroll" style="overflow-x:auto;-webkit-overflow-scrolling:touch"><table>
+<tr><th>Dokumento</th><th>Petsa at Oras ng Request</th><th>Course / Department</th><th>Detalye</th><th>Purpose</th><th>Status</th></tr>'''
+            for req in sorted(my_requests, key=lambda item: str(item.get("requested_at", "")), reverse=True):
+                doc_label = doc_labels.get(req.get("document_type"), req.get("document_type", "-"))
+                if req.get("document_type") == "grades":
+                    details = f'{req.get("grade_year", "-")} | {req.get("grade_sem", "-")}'
+                elif req.get("document_type") == "ctc" and req.get("cor_file"):
+                    filename = html_escape(str(req["cor_file"]), quote=True)
+                    details = f'<a href="/uploads/{filename}" target="_blank" class="edit-btn">Tingnan ang COR</a>'
+                else:
+                    details = "-"
+                content += f'''<tr>
+<td>{html_escape(str(doc_label), quote=True)}</td>
+<td>{html_escape(str(req.get("requested_at", "-")), quote=True)}</td>
+<td>{html_escape(str(req.get("department", req.get("course", "-"))), quote=True)}</td>
+<td>{details}</td>
+<td>{html_escape(str(req.get("purpose", "-")), quote=True)}</td>
+<td>{html_escape(str(req.get("status", "Pending")), quote=True)}</td>
+</tr>'''
+            content += '</table></div>'
+        content += '</div>'
+
+    if role != "student":
+        content = office_hero(
+            "Registrar Office",
+            "Pumili ng card para buksan ang hiwalay na pahina.",
+            "📄",
+            [("▤", "Document Requests", new_request_count, "sage", "/registrar/requests"), ("◷", "Office Announcements", len(anns), "gold", "/registrar/announcements"), ("🗂️", "History Records", history_count, "gold", "/registrar/history")]
+        ) + '<div class="card"><h2>Registrar Office</h2><p>Pindutin ang isa sa mga card sa itaas para buksan ang talaan o impormasyon.</p></div>'
+
     return dashboard_template(content, "registrar", "Registrar Office")
+
+
+@app.route('/registrar/<section>')
+def registrar_section(section):
+    uname = get_current_user()
+    if not uname:
+        return redirect('/')
+
+    user_data = users.get(uname, {})
+    role = user_data.get("role")
+    if role not in ["admin", "registrar_admin", "student"]:
+        return redirect('/dashboard')
+
+    page_info = {
+        "requests": ("📋 Document Requests", "Track document requests and released documents."),
+        "history": ("🗂️ History Records", "Choose a document type to view completed requests only."),
+        "announcements": ("📢 Office Announcements", "View and manage Registrar Office announcements.")
+    }
+    if section not in page_info:
+        return redirect('/registrar')
+    if section in {"requests", "history"} and not can_view_requests():
+        return redirect('/registrar')
+
+    title, subtitle = page_info[section]
+    content = f'''<section class="card"><a href="/registrar" class="edit-btn" style="display:inline-block;text-decoration:none;margin-bottom:14px">← Back to Registrar Office</a><h2>{title}</h2><p>{subtitle}</p></section>'''
+
+    if section == "requests":
+        doc_groups = [
+            ("ctc", "📋 Certified True Copy (CTC)", "COR document request"),
+            ("tor", "📑 Transcript of Records (TOR)", "Transcript requests"),
+            ("grades", "📊 Copy of Grades", "Grade-copy requests")
+        ]
+        visible_requests = grade_requests
+        content += '<section class="card"><h2>📄 Piliin ang uri ng request</h2><div class="office-metrics">'
+        for doc_type, label, description in doc_groups:
+            records = [req for req in visible_requests if req.get("document_type") == doc_type and req.get("status", "Pending") in {"Pending", "Processing", "Ready"}]
+            content += f'''<a class="office-metric office-metric-link" href="/registrar/requests/{doc_type}"><span class="office-metric-icon sage">📄</span><div><div class="office-metric-label">{label}</div><div class="office-metric-value">{len(records)} bagong request</div><small>{description}</small></div></a>'''
+        content += '</div></section>'
+
+    elif section == "history":
+        doc_groups = [
+            ("ctc", "📋 Certified True Copy (CTC)"),
+            ("tor", "📑 Transcript of Records (TOR)"),
+            ("grades", "📊 Copy of Grades")
+        ]
+        visible_requests = grade_requests
+        content += '<section class="card"><h2>🗂️ Pumili ng history records</h2><div class="office-metrics">'
+        for doc_type, label in doc_groups:
+            records = [req for req in visible_requests if req.get("document_type") == doc_type and req.get("status") == "Completed"]
+            content += f'''<a class="office-metric office-metric-link" href="/registrar/requests/{doc_type}?view=history"><span class="office-metric-icon gold">🗂️</span><div><div class="office-metric-label">{label}</div><div class="office-metric-value">{len(records)} completed</div><small>Completed requests only</small></div></a>'''
+        content += '</div></section>'
+
+    elif section == "announcements":
+        content += '<section class="card"><h2>📢 Announcements</h2>'
+        if can_manage("registrar"):
+            content += '''<form method="POST" action="/registrar/add" class="form-group"><div class="form-group"><label>Title</label><input name="title" required></div><div class="form-group"><label>Content / Announcement</label><textarea name="content" rows="4" required></textarea></div><button type="submit" class="submit-btn">➕ Post Announcement</button></form>'''
+        if not announcements.get("registrar"):
+            content += '<p>No announcements yet.</p>'
+        else:
+            for announcement in announcements["registrar"]:
+                content += f'<article class="announce"><h3>{html_escape(str(announcement.get("title", "")))}</h3><p>{html_escape(str(announcement.get("content", "")))}</p><small>Posted by: {html_escape(str(announcement.get("author", "-")))}</small></article>'
+        content += '</section>'
+
+    return dashboard_template(content, "registrar", f"Registrar Office — {title}")
+
+
+@app.route('/registrar/requests/<document_type>')
+def registrar_document_requests(document_type):
+    uname = get_current_user()
+    if not uname:
+        return redirect('/')
+    if not can_view_requests():
+        return redirect('/dashboard')
+
+    doc_info = {
+        "ctc": ("📋 Certified True Copy (CTC)", "CTC"),
+        "tor": ("📑 Transcript of Records (TOR)", "TOR"),
+        "grades": ("📊 Copy of Grades", "Copy of Grades")
+    }
+    if document_type not in doc_info:
+        return redirect('/registrar/requests')
+
+    title, document_label = doc_info[document_type]
+    visible_requests = [req for req in grade_requests if req.get("document_type") == document_type]
+    status_message = " Na-update ang status ng request." if request.args.get("updated") == "1" else ""
+    show_history = request.args.get("view") == "history"
+    if show_history:
+        visible_requests = [req for req in visible_requests if req.get("status") == "Completed"]
+        section_title = f"🗂️ History Records ({len(visible_requests)})"
+        empty_message = f'Wala pang completed na {html_escape(document_label)} request.'
+    else:
+        visible_requests = [req for req in visible_requests if req.get("status", "Pending") in {"Pending", "Processing", "Ready"}]
+        section_title = f"🆕 Bagong Requests ({len(visible_requests)})"
+        empty_message = f'Wala pang bagong {html_escape(document_label)} request.'
+    visible_requests.sort(key=lambda item: str(item.get("requested_at", "")), reverse=True)
+
+    content = f'''<section class="card"><a href="/registrar/requests" class="edit-btn" style="display:inline-block;text-decoration:none;margin-bottom:14px">← Back to Document Requests</a><h2>{title}</h2><p>Request at bawat na-release na dokumento ay nakatala sa pahinang ito.</p>'''
+    if status_message:
+        content += f'<p style="color:#087443;font-weight:bold;margin-top:10px">✅{status_message}</p>'
+    if request.args.get("released") == "1":
+        if request.args.get("notice") == "failed":
+            content += '<p style="color:#8a5b00;font-weight:bold;margin-top:10px">✅ Na-save ang pag-release, pero hindi naipadala ang notification sa estudyante.</p>'
+        else:
+            content += '<p style="color:#087443;font-weight:bold;margin-top:10px">✅ Matagumpay na naitala ang pag-release at oras nito.</p>'
+    elif request.args.get("error") == "release_not_ready":
+        content += '<p style="color:#d32f2f;font-weight:bold;margin-top:10px">⚠️ Gawing Ready muna ang request bago markahang released.</p>'
+    elif request.args.get("error") == "release_save_failed":
+        content += '<p style="color:#d32f2f;font-weight:bold;margin-top:10px">Hindi na-save ang release record. Tingnan ang Render application logs para sa database error.</p>'
+    if users.get(uname, {}).get("role") == "student":
+        content += '<a href="/registrar#requestForm" class="submit-btn" style="display:inline-block;text-decoration:none;margin-top:12px">➕ Gumawa ng Request</a>'
+    def render_request_table(requests_to_show):
+        if not requests_to_show:
+            return f'<p>{empty_message}</p>'
+        table_html = '''<div class="request-table-scroll" style="overflow-x:auto;-webkit-overflow-scrolling:touch"><table><tr><th>Student</th><th>School ID</th><th>Request Date &amp; Time</th><th>Course / Department</th><th>Purpose</th><th>Details</th><th>Status</th><th>Pickup Date &amp; Time</th><th>Released By</th><th>Action</th></tr>'''
+        for req in requests_to_show:
+            released_display = str(req.get("released_at", "-"))
+            try:
+                parsed_time = datetime.fromisoformat(released_display)
+                if parsed_time.tzinfo is None:
+                    parsed_time = parsed_time.replace(tzinfo=ZoneInfo("Asia/Manila"))
+                released_display = parsed_time.astimezone(ZoneInfo("Asia/Manila")).strftime("%b %d, %Y %I:%M:%S %p (PHT)")
+            except ValueError:
+                pass
+
+            action = "-"
+            if can_view_requests():
+                if req.get("status", "Pending") == "Pending":
+                    action = f'<a href="/update-request/{req["id"]}/Processing" class="edit-btn">Processing</a> <a href="/update-request/{req["id"]}/Ready" class="approve-btn">Ready</a>'
+                elif req.get("status") == "Processing":
+                    action = f'<a href="/update-request/{req["id"]}/Ready" class="approve-btn">Ready</a>'
+                elif req.get("status") == "Ready":
+                    action = f'<form method="POST" action="/release-request/{req["id"]}" style="display:inline" onsubmit="return confirm(\'Record this document as picked up?\')"><button type="submit" class="submit-btn">📦 Mark as Released</button></form>'
+
+            details = "-"
+            if document_type == "grades":
+                details = f'{req.get("grade_year", "-")} | {req.get("grade_sem", "-")}'
+            elif document_type == "ctc" and req.get("cor_file"):
+                filename = html_escape(str(req["cor_file"]), quote=True)
+                details = f'<a href="/uploads/{filename}" target="_blank" class="edit-btn">View COR</a>'
+
+            cells = [req.get("student_name", "-"), req.get("school_id", "-"), req.get("requested_at", "-"), req.get("department", req.get("course", "-")), req.get("purpose", "-"), None, req.get("status", "Pending"), released_display, req.get("released_by", "-")]
+            row = ''.join(f'<td>{html_escape(str(value), quote=True)}</td>' if value is not None else f'<td>{details}</td>' for value in cells)
+            table_html += f'<tr>{row}<td>{action}</td></tr>'
+        return table_html + '</table></div>'
+
+    content += f'</section><section class="card"><h2>{section_title}</h2>{render_request_table(visible_requests)}</section>'
+    return dashboard_template(content, "registrar", f"{document_label} Requests")
 
 
 @app.route('/guard/log', methods=['POST'])
@@ -2371,6 +2644,9 @@ def notifications_page():
     if not uname:
         return redirect('/')
 
+    # Visiting the notifications inbox marks all notifications as seen and
+    # refreshes the sidebar unread badge immediately.
+    mark_notifications_read(uname)
     items = deduplicate_legacy_notifications(notifications.get(uname, []))
     content = '<div class="card"><h2>🔔 Notifications</h2>'
 
